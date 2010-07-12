@@ -193,8 +193,8 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
 	{ 4, 480000 },
 	/* ToAsTcfh
 	{ 5, 528000 },
-	{ 6, CPUFREQ_TABLE_END },*/
-	{ 5, 518400 },
+	{ 6, CPUFREQ_TABLE_END }, */
+	/*{ 5, 518400 },
 	{ 6, 537600 },
     { 7, 556800 },
     { 8, 576000 },
@@ -208,8 +208,16 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
     { 16, 729600 },
     { 17, 748800 },
     { 18, 768000 },
-	{ 19, CPUFREQ_TABLE_END },
-	/* !ToAsTcfh */
+	{ 19, CPUFREQ_TABLE_END }, */
+	/* ASTAR: reduce clock steps. remove unsafe very high freq. */
+	{ 5, 518400 },
+    { 7, 633600 },
+	{ 8, 652800 },
+    { 9, 672000 },
+    { 10, 691200 },
+    { 11, 710400 },
+	{ 12, CPUFREQ_TABLE_END },
+	/* !ASTAR */
 #else
 	{ 0, 19200 },
 	{ 1, 122880 },
