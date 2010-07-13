@@ -211,12 +211,12 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
 	{ 19, CPUFREQ_TABLE_END }, */
 	/* ASTAR: reduce clock steps. remove unsafe very high freq. */
 	{ 5, 518400 },
-    { 7, 633600 },
-	{ 8, 652800 },
-    { 9, 672000 },
-    { 10, 691200 },
-    { 11, 710400 },
-	{ 12, CPUFREQ_TABLE_END },
+    { 6, 633600 },
+	{ 7, 652800 },
+    { 8, 672000 },
+    { 9, 691200 },
+    { 10, 710400 },
+	{ 11, CPUFREQ_TABLE_END },
 	/* !ASTAR */
 #else
 	{ 0, 19200 },
