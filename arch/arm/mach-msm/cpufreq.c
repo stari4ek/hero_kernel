@@ -93,11 +93,12 @@ static int __init msm_cpufreq_init(struct cpufreq_policy *policy)
 
 	BUG_ON(cpufreq_frequency_table_cpuinfo(policy, table));
 	policy->cur = acpuclk_get_rate();
-#if 0
+/* ASTAR: by default (during boot and after) use safe freqs
+#if 0 */
 	/* restrict cpu freq scaling range by overwriting */
 	policy->min = CONFIG_MSM_CPU_FREQ_ONDEMAND_MIN;
 	policy->max = CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX;
-#endif
+/* ASTAR #endif */
 	policy->cpuinfo.transition_latency =
 		acpuclk_get_switch_time() * NSEC_PER_USEC;
 	return 0;
