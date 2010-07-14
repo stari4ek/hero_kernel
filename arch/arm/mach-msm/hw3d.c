@@ -645,7 +645,10 @@ static void hw3d_late_resume(struct early_suspend *h)
 }
 
 #ifndef CONFIG_MSM_HW3D_EARLYSUSPEND_ENABLED
-static void hw3d_suspend(struct platform_device *pdev)
+/* ASTAR:	fix declaration to be compatible with platform_driver.suspend type
+			TODO: looks like this macro depends on some debug configs.
+static void hw3d_suspend(struct platform_device *pdev) */
+static void hw3d_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct hw3d_info *info = platform_get_drvdata(pdev);
 	unsigned long flags;
@@ -657,7 +660,7 @@ static void hw3d_suspend(struct platform_device *pdev)
 		locked_hw3d_revoke(info);
 	}
 	spin_unlock_irqrestore(&info->lock, flags);
-	return 0;
+	/* ASTAR return 0; */
 }
 #endif
 
