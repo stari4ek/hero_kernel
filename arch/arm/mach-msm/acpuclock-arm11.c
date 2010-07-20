@@ -98,7 +98,9 @@ struct clkctl_acpu_speed {
 /* Index in acpu_freq_tbl[] for steppings. */
 	short		down;
 	short		up;
+#if defined(CONFIG_7H_CPUCLOCK_EXTENDED)
 	short		pll2_lval; /* ToAsTcfh: For overclocking via PLL2 L val */
+#endif
 };
 
 /*
@@ -141,8 +143,10 @@ static struct clkctl_acpu_speed  msm72xx_tbl[] = {
 #else /* Google */
 	{ 480000, ACPU_PLL_1, 1, 1, 128000, 2, VDD_6, 160000, 0, 2, -1 },
 #endif
-	/* ToAsTcfh. ASTAR: 19200 as clock step
-	{ 528000, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1 },*/
+#if !defined(CONFIG_7H_CPUCLOCK_EXTENDED)
+	{ 528000, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1 },
+#else
+	/* ASTAR: ToAsTcfh values used. 19200 as clock step */
 	{ 518400, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1, 0x1a },
 	{ 537600, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1, 0x1b },
 	{ 556800, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1, 0x1c },
@@ -157,7 +161,7 @@ static struct clkctl_acpu_speed  msm72xx_tbl[] = {
 	{ 729600, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1, 0x26 },
 	{ 748800, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1, 0x27 },
 	{ 768000, ACPU_PLL_2, 2, 1, 132000, 3, VDD_7, 160000, 0, 5, -1, 0x28 },
-	/* !ToAsTcfh */
+#endif /* CONFIG_7H_CPUCLOCK_EXTENDED */
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 #else
 	{ 19200, ACPU_PLL_TCXO, 0, 0, 19200, 0, VDD_0, 30720, 0, 0, 4 },
@@ -191,10 +195,12 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
 	{ 2, 160000 },
 	{ 3, 245760 },
 	{ 4, 480000 },
-	/* ToAsTcfh
+#if !defined(CONFIG_7H_CPUCLOCK_EXTENDED)
 	{ 5, 528000 },
-	{ 6, CPUFREQ_TABLE_END }, */
-	/*{ 5, 518400 },
+	{ 6, CPUFREQ_TABLE_END },
+#else
+#if defined(CONFIG_7H_CPUCLOCK_FREQS_ALL)
+	{ 5, 518400 },
 	{ 6, 537600 },
 	{ 7, 556800 },
 	{ 8, 576000 },
@@ -208,16 +214,23 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
 	{ 16, 729600 },
 	{ 17, 748800 },
 	{ 18, 768000 },
-	{ 19, CPUFREQ_TABLE_END }, */
-	/* ASTAR: reduce clock steps. remove unsafe very high freq. */
-	{ 5, 518400 },
+	{ 19, CPUFREQ_TABLE_END },
+#elif defined(CONFIG_7H_CPUCLOCK_FREQS_633)
 	{ 6, 633600 },
-	{ 7, 652800 },
-	{ 8, 672000 },
-	{ 9, 691200 },
-	{ 10, 710400 },
-	{ 11, CPUFREQ_TABLE_END },
-	/* !ASTAR */
+	{ 7, CPUFREQ_TABLE_END },
+#elif defined(CONFIG_7H_CPUCLOCK_FREQS_652)
+	{ 6, 652800 },
+	{ 7, CPUFREQ_TABLE_END },
+#elif defined(CONFIG_7H_CPUCLOCK_FREQS_691)
+	{ 6, 691200 },
+	{ 7, CPUFREQ_TABLE_END },
+#elif defined(CONFIG_7H_CPUCLOCK_FREQS_710)
+	{ 6, 710400 },
+	{ 7, CPUFREQ_TABLE_END },
+#else
+	#error "Wrong kernel config"
+#endif /* ALL -> 633 -> 652 -> 691 -> 710 */
+#endif /* CONFIG_7H_CPUCLOCK_EXTENDED */
 #else
 	{ 0, 19200 },
 	{ 1, 122880 },
@@ -357,15 +370,15 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 	/* AHB_CLK_DIV */
 	clk_div = (readl(A11S_CLK_SEL_ADDR) >> 1) & 0x03;
 
-	/* ToAsTcfh */
+	/* based on ToAsTcfh patch */
 	a11_div=hunt_s->a11clk_src_div;
-	if (hunt_s->a11clk_khz > 518400 && hunt_s->pll2_lval > 0) {
-		
+#if defined(CONFIG_7H_CPUCLOCK_EXTENDED)
+	if (hunt_s->a11clk_khz >= 518400 && hunt_s->pll2_lval > 0) {
 		a11_div = 0;
-		 writel(hunt_s->a11clk_khz/19200, MSM_CLK_CTL_BASE+0x33c);
+		writel(hunt_s->a11clk_khz/19200, MSM_CLK_CTL_BASE+0x33c);
 		udelay(50);
 	}
-	/* !ToAsTcfh */
+#endif
 
 	/*
 	 * If the new clock divider is higher than the previous, then
