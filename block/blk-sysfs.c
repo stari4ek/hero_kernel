@@ -93,6 +93,23 @@ queue_ra_store(struct request_queue *q, const char *page, size_t count)
 	return ret;
 }
 
+static ssize_t queue_rar_show(struct request_queue *q, char *page)
+{
+	int rar_kb = q->backing_dev_info.rar_pages << (PAGE_CACHE_SHIFT - 10);
+
+	return queue_var_show(rar_kb, (page));
+}
+
+static ssize_t
+queue_rar_store(struct request_queue *q, const char *page, size_t count)
+{
+	unsigned long rar_kb;
+	ssize_t ret = queue_var_store(&rar_kb, page, count);
+
+	q->backing_dev_info.rar_pages = rar_kb >> (PAGE_CACHE_SHIFT - 10);
+
+	return ret;
+}
 static ssize_t queue_max_sectors_show(struct request_queue *q, char *page)
 {
 	int max_sectors_kb = q->max_sectors >> 1;
@@ -228,6 +245,12 @@ static struct queue_sysfs_entry queue_ra_entry = {
 	.attr = {.name = "read_ahead_kb", .mode = S_IRUGO | S_IWUSR },
 	.show = queue_ra_show,
 	.store = queue_ra_store,
+};
+
+static struct queue_sysfs_entry queue_rar_entry = {
+	.attr = {.name = "read_around_kb", .mode = S_IRUGO | S_IWUSR },
+	.show = queue_rar_show,
+	.store = queue_rar_store,
 };
 
 static struct queue_sysfs_entry queue_max_sectors_entry = {

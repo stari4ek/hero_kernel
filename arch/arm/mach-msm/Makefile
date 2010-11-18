@@ -6,9 +6,8 @@ obj-y += vreg.o
 obj-y += pmic.o
 obj-y += remote_spinlock.o
 obj-$(CONFIG_ARCH_MSM_ARM11) += acpuclock-arm11.o idle.o
-# obj-$(CONFIG_ARCH_MSM_SCORPION) += acpuclock-scorpion.o idle-v7.o
 obj-$(CONFIG_ARCH_MSM_SCORPION) += arch-init-scorpion.o
-obj-$(CONFIG_ARCH_MSM_SCORPION) += acpuclock-scorpion.o idle-v7.o appsbl_sc_sa_fuse_ro.o
+obj-$(CONFIG_ARCH_MSM_SCORPION) += acpuclock-scorpion.o idle-v7.o
 
 obj-y += clock.o
 obj-y += gpio.o generic_gpio.o
@@ -115,6 +114,7 @@ obj-$(CONFIG_MACH_SAPPHIRE) += board-sapphire-mmc.o board-sapphire-wifi.o
 # MSM7225 boards
 obj-$(CONFIG_MACH_BUZZ) += board-buzz.o board-buzz-panel.o board-buzz-keypad.o board-buzz-microp.o
 obj-$(CONFIG_MACH_BUZZ) += board-buzz-rfkill.o board-buzz-mmc.o board-buzz-wifi.o
+obj-$(CONFIG_HTC_OFFMODE_CHARGING) += htc_offmode_charging.o
 obj-$(CONFIG_MACH_BEE) += board-bee.o board-bee-panel.o board-bee-keypad.o board-bee-microp.o
 obj-$(CONFIG_MACH_BEE) += board-bee-rfkill.o board-bee-mmc.o board-bee-wifi.o
 obj-$(CONFIG_MACH_BUZZC) += board-buzzc.o board-buzzc-panel.o board-buzzc-keypad.o board-buzzc-microp.o
@@ -168,4 +168,5 @@ obj-$(CONFIG_PERFLOCK) += perflock.o
 obj-$(CONFIG_PERFLOCK) += htc_set_perflock.o
 obj-$(CONFIG_MICROP_COMMON) += atmega_microp_common.o
 obj-$(CONFIG_TOUCHSCREEN_TSSC_MANAGER) += htc_tp_cal.o
+
 

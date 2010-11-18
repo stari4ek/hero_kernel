@@ -60,7 +60,11 @@ void start_drawing_late_resume(struct early_suspend *h)
 static struct early_suspend stop_drawing_early_suspend_desc = {
 	.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING,
 	.suspend = stop_drawing_early_suspend,
+#ifdef CONFIG_HTC_ONMODE_CHARGING
+	.resume = start_drawing_late_resume,
+#else
 	.resume = NULL,
+#endif
 };
 
 static ssize_t wait_for_fb_sleep_show(struct kobject *kobj,

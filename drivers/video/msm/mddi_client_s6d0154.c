@@ -91,12 +91,10 @@ samsung_update_framedata(struct panel_info *panel)
 
 static void samsung_dump_vsync(void)
 {
-	unsigned long rate = clk_get_rate(ebi1_clk);
-
 	printk(KERN_INFO "STATUS %d %s EBI1 %lu\n",
 			readl(VSYNC_STATUS) & 0x04,
 			readl(VSYNC_EN) & 0x04 ? "ENABLED" : "DISABLED",
-			rate);
+			clk_get_rate(ebi1_clk));
 }
 
 static inline void samsung_clear_vsync(void)

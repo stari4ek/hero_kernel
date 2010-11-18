@@ -317,6 +317,9 @@ static void audpp_dsp_event(void *data, unsigned id, size_t len,
 		} else
 			pr_err("audpp: invalid config msg %d\n", msg[0]);
 		break;
+	case ADSP_MESSAGE_ID:
+		pr_info("audpp: module enabled\n");
+		break;
 	}
 }
 

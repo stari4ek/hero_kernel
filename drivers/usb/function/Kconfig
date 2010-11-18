@@ -62,6 +62,10 @@ config USB_FUNCTION_SERIAL
 	boolean "USB SERIAL Function"
 	depends on USB_FUNCTION
 
+config USB_FUNCTION_PROJECTOR
+	boolean "USB PROJECTOR Function"
+	depends on USB_FUNCTION
+
 config USB_FUNCTION_MTP_TUNNEL
 	boolean "MTP Tunnel Transport Function"
 	depends on USB_FUNCTION

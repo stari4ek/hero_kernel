@@ -49,13 +49,16 @@
 
 static DECLARE_WAIT_QUEUE_HEAD(himax_vsync_wait);
 
+#define INTERVAL_ADJUSTING	300
 
 struct panel_info {
 	struct msm_mddi_client_data *client_data;
 	struct platform_device pdev;
 	struct msm_panel_data panel_data;
+	struct work_struct adjust_panel_work;
 	struct msmfb_callback *fb_callback;
 	struct wake_lock idle_lock;
+	atomic_t frame_counter;
 	int himax_got_int;
 };
 
@@ -73,6 +76,18 @@ static struct clk *ebi1_clk;
 static void himax_dump_vsync(void)
 {
 	B(KERN_DEBUG "%s: enter.\n", __func__);
+}
+
+static void himax_adjust_work(struct work_struct *work){
+	struct panel_info * panel = container_of(work, struct panel_info, adjust_panel_work);
+	struct msm_mddi_client_data *client_data = panel->client_data;
+	struct msm_mddi_bridge_platform_data *bridge_data =
+		client_data->private_client_data;
+
+	if(bridge_data->adjust)
+		bridge_data->adjust(client_data);
+
+	atomic_set(&panel->frame_counter, INTERVAL_ADJUSTING);
 }
 
 static void
@@ -175,9 +190,10 @@ static int himax_unblank(struct msm_panel_data *panel_data)
 	struct msm_mddi_bridge_platform_data *bridge_data =
 	    client_data->private_client_data;
 
-	if(cabc_config.bl_handle)
+	if(cabc_config.bl_handle) {
+		mdelay(40);
 		cabc_config.bl_handle(&mddi_himax_cabc, LED_FULL);
-
+	}
 	return bridge_data->unblank(bridge_data, client_data);
 }
 
@@ -186,7 +202,13 @@ static irqreturn_t himax_vsync_interrupt(int irq, void *data)
 	struct panel_info *panel = data;
 
 	panel->himax_got_int = 1;
-	if (panel->fb_callback) {
+
+	if (atomic_dec_and_test(&panel->frame_counter)) {
+		schedule_work(&panel->adjust_panel_work);
+		return IRQ_HANDLED;
+	}
+
+	if (panel->fb_callback  && atomic_read(&panel->frame_counter) > 0) {
 		panel->fb_callback->func(panel->fb_callback);
 		panel->fb_callback = NULL;
 	}
@@ -219,7 +241,7 @@ static int setup_vsync(struct panel_info *panel, int init)
 	if (ret < 0)
 		goto err_get_irq_num_failed;
 
-	ret = request_irq(irq, himax_vsync_interrupt, IRQF_TRIGGER_HIGH,
+	ret = request_irq(irq, himax_vsync_interrupt, IRQF_TRIGGER_RISING,
 			"vsync", panel);
 	if (ret)
 		goto err_request_irq_failed;
@@ -293,6 +315,9 @@ static int mddi_himax_probe(struct platform_device *pdev)
 	wake_lock_init(&panel->idle_lock, WAKE_LOCK_IDLE, "eid_idle_lock");
 	/*for debugging vsync issue*/
 	ebi1_clk = clk_get(NULL, "ebi1_clk");
+
+	INIT_WORK(&panel->adjust_panel_work, himax_adjust_work);
+	atomic_set(&panel->frame_counter, INTERVAL_ADJUSTING);
 
 	return 0;
 

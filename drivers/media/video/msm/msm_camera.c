@@ -125,12 +125,14 @@ static void msm_enqueue(struct msm_device_queue *queue,
 	struct msm_device_queue *__q = (queue);			\
 	struct msm_queue_cmd *qcmd = 0;					\
 	spin_lock_irqsave(&__q->lock, flags);			\
-	if (!list_empty(&__q->list)) {				\
-		__q->len--;					\
-		qcmd = list_first_entry(&__q->list,		\
-				struct msm_queue_cmd, member);	\
-		list_del_init(&qcmd->member);			\
-	}							\
+	if (!list_empty(&__q->list)) {					\
+		__q->len--;									\
+		qcmd = list_first_entry(&__q->list,			\
+				struct msm_queue_cmd, member);		\
+				if (qcmd) {                         \
+					list_del_init(&qcmd->member);	\
+				}                                   \
+	}												\
 	spin_unlock_irqrestore(&__q->lock, flags);		\
 	qcmd;											\
 })
@@ -265,7 +267,7 @@ static uint8_t msm_pmem_region_lookup(struct hlist_head *ptype,
 	uint8_t rc = 0;
 
 	regptr = reg;
-
+	mutex_lock(&hlist_mut);
 	hlist_for_each_entry_safe(region, node, n, ptype, list) {
 		if (region->info.type == pmem_type &&
 			region->info.vfe_can_write) {
@@ -276,7 +278,7 @@ static uint8_t msm_pmem_region_lookup(struct hlist_head *ptype,
 				regptr++;
 		}
 	}
-
+	mutex_unlock(&hlist_mut);
 	return rc;
 }
 
@@ -317,7 +319,7 @@ static unsigned long msm_pmem_stats_ptov_lookup(struct msm_sync *sync,
 			return (unsigned long)(region->info.vaddr);
 		}
 	}
-#if 0
+#if 1
 	printk("msm_pmem_stats_ptov_lookup: lookup vaddr..\n");
 	hlist_for_each_entry_safe(region, node, n, &sync->pmem_stats, list) {
 		if (addr == (unsigned long)(region->info.vaddr)) {
@@ -450,7 +452,9 @@ static int __msm_get_frame(struct msm_sync *sync,
 	struct msm_vfe_resp *vdata;
 	struct msm_vfe_phy_info *pphy;
 
-	qcmd = msm_dequeue(&sync->frame_q, list_frame);
+	if (&sync->frame_q) {
+		qcmd = msm_dequeue(&sync->frame_q, list_frame);
+	}
 
 	if (!qcmd) {
 		pr_err("%s: no preview frame.\n", __func__);
@@ -479,7 +483,7 @@ static int __msm_get_frame(struct msm_sync *sync,
 	frame->y_off = region->info.y_off;
 	frame->cbcr_off = region->info.cbcr_off;
 	frame->fd = region->info.fd;
-/*	frame->path = vdata->phy.output_id;*/
+	frame->path = vdata->phy.output_id;
 	CDBG("%s: y %x, cbcr %x, qcmd %x, virt_addr %x\n",
 		__func__,
 		pphy->y_phy, pphy->cbcr_phy, (int) qcmd, (int) frame->buffer);

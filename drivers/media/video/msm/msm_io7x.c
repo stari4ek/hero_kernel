@@ -163,16 +163,13 @@ int msm_camio_enable(struct platform_device *pdev)
 		goto mdc_no_mem;
 	}
 
-
 	msm_camio_clk_enable(CAMIO_VFE_CLK);
 	msm_camio_clk_enable(CAMIO_MDC_CLK);
 	msm_camio_clk_enable(CAMIO_VFE_MDC_CLK);
 
-
 	mdelay(2);
 	camdev->camera_gpio_on();
 	mdelay(2);
-
 
 	return 0;
 

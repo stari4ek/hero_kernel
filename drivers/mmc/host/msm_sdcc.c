@@ -55,7 +55,6 @@
 #define DBG(host, fmt, args...)	\
 	pr_debug("%s: %s: " fmt, mmc_hostname(host->mmc), __func__ , args)
 
-// Andrew 0224
 #define IRQ_DEBUG 0
 // #define IRQ_DEBUG 1
 
@@ -111,12 +110,41 @@ msmsdcc_print_status(struct msmsdcc_host *host, char *hdr, uint32_t status)
 static inline void
 msmsdcc_disable_clocks(struct msmsdcc_host *host, int deferr)
 {
-	WARN_ON(!host->clks_on);
+#ifdef CONFIG_WIMAX         
+	if (supersonic_wimax_get_status())
+    {
+		if (!host->clks_on) {
+			printk(KERN_ERR "%s: CLKS_ON is null!\n", __func__); 
+			return;
+		}
+	}
+#endif
 
-	BUG_ON(host->curr.mrq);
+	WARN_ON(!host->clks_on); 
+	// BUG_ON(host->curr.mrq);
+	WARN_ON(host->curr.mrq);
+
+#ifdef CONFIG_WIMAX         
+    u32 delay = 0;
+#endif
 
 	if (deferr) {
+
+#ifdef CONFIG_WIMAX
+#define SQN_BUSCLK_DELAY_SECONDS	65
+
+		if (supersonic_wimax_get_status())
+        {
+            delay = jiffies + msecs_to_jiffies(SQN_BUSCLK_DELAY_SECONDS * MSEC_PER_SEC);
+            mod_timer(&host->busclk_timer, delay);
+        }
+        else
+            mod_timer(&host->busclk_timer, jiffies + BUSCLK_TIMEOUT); 
+#else 
 		mod_timer(&host->busclk_timer, jiffies + BUSCLK_TIMEOUT);
+#endif 
+
+
 	} else {
 		del_timer_sync(&host->busclk_timer);
 		/* dev_info(mmc_dev(host->mmc), "Immediate clock shutdown\n"); */
@@ -220,7 +248,7 @@ msmsdcc_request_end(struct msmsdcc_host *host, struct mmc_request *mrq)
 
 #ifdef CONFIG_MMC_BUSCLK_PWRSAVE
 #ifdef CONFIG_WIMAX
-	if (!supersonic_wimax_get_status())              
+	// if (!supersonic_wimax_get_status())              
 #endif
 	       msmsdcc_disable_clocks(host, 1);
 #endif
@@ -355,7 +383,7 @@ msmsdcc_dma_complete_func(struct msm_dmov_cmd *cmd,
 			spin_unlock_irqrestore(&host->lock, flags);
 #ifdef CONFIG_MMC_BUSCLK_PWRSAVE
 #ifdef CONFIG_WIMAX
-			if (!supersonic_wimax_get_status())              
+			// if (!supersonic_wimax_get_status())              
 #endif
 			   msmsdcc_disable_clocks(host, 1);
 #endif
@@ -1098,7 +1126,7 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 #ifdef CONFIG_MMC_BUSCLK_PWRSAVE
 	if (host->clks_on)
 #ifdef CONFIG_WIMAX
-			if (!supersonic_wimax_get_status())              
+			// if (!supersonic_wimax_get_status())              
 #endif
 		      del_timer_sync(&host->busclk_timer);
 #endif
@@ -1157,12 +1185,14 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	}
 
 	if (!(clk & MCI_CLK_ENABLE) && host->clks_on)
+	{
 		msmsdcc_disable_clocks(host, 0);
+	}
 
 #ifdef CONFIG_MMC_BUSCLK_PWRSAVE
 	if (host->clks_on)
 #ifdef CONFIG_WIMAX
-		if (!supersonic_wimax_get_status())              
+		// if (!supersonic_wimax_get_status())              
 #endif
 		     msmsdcc_disable_clocks(host, 1);
 #endif
@@ -1255,7 +1285,9 @@ msmsdcc_check_status(unsigned long data)
 
 out:
 	if (host->timer.function)
+	{
 		mod_timer(&host->timer, jiffies + HZ);
+	}
 }
 
 static irqreturn_t
@@ -1590,7 +1622,7 @@ msmsdcc_probe(struct platform_device *pdev)
 #ifdef CONFIG_MMC_BUSCLK_PWRSAVE
 	if (host->clks_on) {
 #ifdef CONFIG_WIMAX
-			if (!supersonic_wimax_get_status())              
+			// if (!supersonic_wimax_get_status())              
 #endif			
 		        msmsdcc_disable_clocks(host, 1);
 	}	
@@ -1630,7 +1662,9 @@ msmsdcc_suspend(struct platform_device *dev, pm_message_t state)
 		if (!rc)
 			msmsdcc_writel(host, 0, MMCIMASK0);
 		if (host->clks_on)
+		{
 			msmsdcc_disable_clocks(host, 0);
+		}
 	}
 	return rc;
 }
@@ -1661,10 +1695,9 @@ msmsdcc_resume(struct platform_device *dev)
 		if (host->clks_on)
 		{
 #ifdef CONFIG_WIMAX
-			if (!supersonic_wimax_get_status())              
+			// if (!supersonic_wimax_get_status())              
 #endif
             {				
-				printk(KERN_INFO "%s msmsdcc_disable_clocks\n", __func__);
 				msmsdcc_disable_clocks(host, 1);
 			}
 		}

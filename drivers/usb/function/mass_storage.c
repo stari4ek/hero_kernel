@@ -78,6 +78,7 @@
 #endif /* ENABLE_SCSI_CMD_RESERVE_6_TO_SPEC_CMD */
 
 #include "usb_function.h"
+#include <mach/msm_hsusb.h>
 
 /*-------------------------------------------------------------------------*/
 
@@ -315,6 +316,7 @@ struct fsg_dev {
 	enum fsg_state		state;		/* For exception handling */
 
 	u8			config, new_config;
+	u8			ums_state;
 
 	unsigned int		running : 1;
 	unsigned int		phase_error : 1;
@@ -2269,16 +2271,28 @@ static int do_set_config(struct fsg_dev *fsg, u8 new_config)
 {
 	int	rc = 0;
 	struct lun *curlun = &fsg->luns[0];
+	int need_change_state;
 
-	printk(KERN_INFO "%s: new_config = %d, fsg->config = %d, usb_get_connect_type = %d\n",
-		__func__, new_config, fsg->config, usb_get_connect_type());
+	need_change_state =  (new_config != 0) ||
+		!(return_usb_function_enabled(DRIVER_NAME) &&
+		usb_get_connect_type());
+
+	printk(KERN_INFO "ums: config (%d, %d, %d) connect_type = %d\n",
+		new_config, fsg->config, fsg->ums_state, usb_get_connect_type());
+	printk(KERN_INFO "ums: need_change_state = %d\n", need_change_state);
 
 	if (new_config == fsg->config) {
-		if (new_config == 0 && curlun && backing_file_is_open(curlun)
-			&& usb_get_connect_type() == 0) {
-			switch_set_state(&fsg->sdev, 1);
-			switch_set_state(&fsg->sdev, 0);
-			printk(KERN_INFO "%s: backing_file_is_open uevent = %d\n", __func__, new_config);
+		if (new_config == 0 && usb_get_connect_type() == 0) {
+			if (curlun && backing_file_is_open(curlun)) {
+				switch_set_state(&fsg->sdev, 1);
+				switch_set_state(&fsg->sdev, 0);
+				fsg->ums_state = 0;
+				printk(KERN_INFO "ums: switch state 1->0\n");
+			} else if (fsg->ums_state == 1) {
+				switch_set_state(&fsg->sdev, 0);
+				fsg->ums_state = 0;
+				printk(KERN_INFO "ums: set state 0\n");
+			}
 		}
 		return rc;
 	}
@@ -2300,9 +2314,10 @@ static int do_set_config(struct fsg_dev *fsg, u8 new_config)
 			INFO(fsg, "config #%d\n", fsg->config);
 	}
 
-	if (new_config != 0 || usb_get_connect_type() != 1) {
+	if (need_change_state) {
 		switch_set_state(&fsg->sdev, new_config);
-		printk(KERN_INFO "%s: uevent = %d\n", __func__, new_config);
+		fsg->ums_state = new_config;
+		printk(KERN_INFO "ums: set state %d\n", new_config);
 	}
 
 	adjust_wake_lock(fsg);
@@ -2580,7 +2595,7 @@ static void close_backing_file(struct fsg_dev *fsg, struct lun *curlun)
 		 * our pages get synced to disk.
 		 * Also drop caches here just to be extra-safe
 		 */
-		rc = do_fsync((unsigned int)curlun->filp, 1);
+		rc = vfs_fsync(curlun->filp, curlun->filp->f_path.dentry, 1);
 		if (rc < 0)
 			printk(KERN_ERR "ums: Error syncing data (%d)\n", rc);
 		/* drop_pagecache and drop_slab are no longer available */

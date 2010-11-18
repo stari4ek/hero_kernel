@@ -174,5 +174,4 @@ int usb_ept_get_max_packet(struct usb_endpoint *ept);
 void usb_free_endpoint_all_req(struct usb_endpoint *ep);
 int usb_find_interface_number(const char *name);
 int usb_ept_cancel_xfer(struct usb_endpoint *ept, struct usb_request *_req);
-int usb_get_connect_type(void);
 #endif

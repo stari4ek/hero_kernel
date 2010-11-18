@@ -93,6 +93,10 @@ struct msmfb_info {
 
 	struct early_suspend earlier_suspend;
 	struct early_suspend early_suspend;
+#ifdef CONFIG_HTC_ONMODE_CHARGING
+	struct early_suspend onchg_earlier_suspend;
+	struct early_suspend onchg_suspend;
+#endif
 	struct wake_lock idle_lock;
 	spinlock_t update_lock;
 	struct mutex panel_init_lock;
@@ -106,7 +110,40 @@ struct msmfb_info {
 	ktime_t vsync_request_time;
 	unsigned fb_resumed;
 };
+#if defined (CONFIG_USB_FUNCTION_PROJECTOR)
+static spinlock_t fb_data_lock = SPIN_LOCK_UNLOCKED;
+static struct msm_fb_info msm_fb_data;
+int msmfb_get_var(struct msm_fb_info *tmp)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&fb_data_lock, flags);
+	memcpy(tmp, &msm_fb_data, sizeof(msm_fb_data));
+	spin_unlock_irqrestore(&fb_data_lock, flags);
+	return 0;
+}
 
+/* projector need this, and very much */
+int msmfb_get_fb_area(void)
+{
+	int area;
+	unsigned long flags;
+	spin_lock_irqsave(&fb_data_lock, flags);
+	area = msm_fb_data.msmfb_area;
+	spin_unlock_irqrestore(&fb_data_lock, flags);
+	return area;
+}
+
+static void msmfb_set_var(unsigned char *addr, int area)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&fb_data_lock, flags);
+	msm_fb_data.fb_addr = addr;
+	msm_fb_data.msmfb_area = area;
+	spin_unlock_irqrestore(&fb_data_lock, flags);
+
+}
+#endif
 static int msmfb_open(struct fb_info *info, int user)
 {
 	return 0;
@@ -248,9 +285,13 @@ static void msmfb_pan_update(struct fb_info *info, uint32_t left, uint32_t top,
 
 	DLOG(SHOW_UPDATES, "update %d %d %d %d %d %d\n",
 		left, top, eright, ebottom, yoffset, pan_display);
-
+#if defined(CONFIG_USB_FUNCTION_PROJECTOR)
+	/* Jay, 8/1/09' */
+	msmfb_set_var(msmfb->fb->screen_base, yoffset);
+#endif
         if (msmfb->sleeping != AWAKE)
                 DLOG(SUSPEND_RESUME, "pan_update in state(%d)\n", msmfb->sleeping);
+
 
 restart:
 	spin_lock_irqsave(&msmfb->update_lock, irq_flags);
@@ -397,8 +438,6 @@ static int display_notifier_callback(struct notifier_block *nfb,
 		unsigned long action,                       
 		void *ignored)                              
 {                                                                                
-	struct msmfb_info *msm_fb = (struct msmfb_info *)ignored;
-	
 	switch (action) {
 	case NOTIFY_MSM_FB:
 		printk(KERN_DEBUG "NOTIFY_MSM_FB\n");
@@ -461,6 +500,51 @@ static void msmfb_resume_handler(struct early_suspend *h)
 	wait_event_interruptible_timeout(msmfb->frame_wq, msmfb->fb_resumed==1,HZ/2);
 }
 
+#ifdef CONFIG_HTC_ONMODE_CHARGING
+static void msmfb_onchg_earlier_suspend(struct early_suspend *h)
+{
+	struct msmfb_info *msmfb = container_of(h, struct msmfb_info,
+						onchg_earlier_suspend);
+	struct msm_panel_data *panel = msmfb->panel;
+	unsigned long irq_flags;
+
+	mutex_lock(&msmfb->panel_init_lock);
+	msmfb->sleeping = SLEEPING;
+	wake_up(&msmfb->frame_wq);
+	spin_lock_irqsave(&msmfb->update_lock, irq_flags);
+	spin_unlock_irqrestore(&msmfb->update_lock, irq_flags);
+	wait_event_timeout(msmfb->frame_wq,
+			   msmfb->frame_requested == msmfb->frame_done, HZ/10);
+
+	mdp->dma(mdp, virt_to_phys(msmfb->black), 0,
+		 msmfb->fb->var.xres, msmfb->fb->var.yres, 0, 0,
+		 NULL, panel->interface_type);
+	mdp->dma_wait(mdp, panel->interface_type);
+
+	/* turn off the panel */
+	panel->blank(panel);
+}
+
+static void msmfb_onchg_suspend(struct early_suspend *h)
+{
+	struct msmfb_info *msmfb = container_of(h, struct msmfb_info,
+						onchg_suspend);
+	struct msm_panel_data *panel = msmfb->panel;
+	/* suspend the panel */
+	panel->suspend(panel);
+	msmfb->fb_resumed = 0;
+	mutex_unlock(&msmfb->panel_init_lock);
+}
+
+static void msmfb_onchg_resume_handler(struct early_suspend *h)
+{
+	struct msmfb_info *msmfb = container_of(h, struct msmfb_info,
+					onchg_suspend);
+	queue_work(msmfb->resume_workqueue, &msmfb->msmfb_resume_work);
+	wait_event_interruptible_timeout(msmfb->frame_wq, msmfb->fb_resumed == 1, HZ/2);
+}
+#endif
+
 static void msmfb_resume(struct work_struct *work)
 {
 	struct msmfb_info *msmfb =
@@ -478,7 +562,9 @@ static void msmfb_resume(struct work_struct *work)
 	msmfb->sleeping = WAKING;
 	DLOG(SUSPEND_RESUME, "ready, waiting for full update\n");
 	spin_unlock_irqrestore(&msmfb->update_lock, irq_flags);
+#ifndef CONFIG_HTC_ONMODE_CHARGING
 	start_drawing_late_resume(NULL);
+#endif
 	msmfb->fb_resumed = 1;
 	wake_up(&msmfb->frame_wq);
 }
@@ -756,6 +842,13 @@ static void setup_fb_info(struct msmfb_info *msmfb)
 	for (r = 1; r < 16; r++)
 		PP[r] = 0xffffffff;
 
+		/* Jay add, 7/1/09' */
+#if defined (CONFIG_USB_FUNCTION_PROJECTOR)
+	msm_fb_data.xres = msmfb->xres;
+	msm_fb_data.yres = msmfb->yres;
+	printk(KERN_INFO "setup_fb_info msmfb->xres %d, msmfb->yres %d\n",
+				msmfb->xres,msmfb->yres);
+#endif
 }
 
 static int setup_fbmem(struct msmfb_info *msmfb, struct platform_device *pdev)
@@ -819,7 +912,10 @@ static int msmfb_probe(struct platform_device *pdev)
 	ret = setup_fbmem(msmfb, pdev);
 	if (ret)
 		goto error_setup_fbmem;
-
+#if defined(CONFIG_USB_FUNCTION_PROJECTOR)
+	/* Jay, 8/1/09' */
+	msmfb_set_var(msmfb->fb->screen_base, 0);
+#endif
 	setup_fb_info(msmfb);
 
 	spin_lock_init(&msmfb->update_lock);
@@ -847,6 +943,17 @@ static int msmfb_probe(struct platform_device *pdev)
 	msmfb->earlier_suspend.suspend = msmfb_earlier_suspend;
 	msmfb->earlier_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
 	register_early_suspend(&msmfb->earlier_suspend);
+
+#ifdef CONFIG_HTC_ONMODE_CHARGING
+	msmfb->onchg_suspend.suspend = msmfb_onchg_suspend;
+	msmfb->onchg_suspend.resume = msmfb_onchg_resume_handler;
+	msmfb->onchg_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+	register_onchg_suspend(&msmfb->onchg_suspend);
+
+	msmfb->onchg_earlier_suspend.suspend = msmfb_onchg_earlier_suspend;
+	msmfb->onchg_earlier_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
+	register_onchg_suspend(&msmfb->onchg_earlier_suspend);
+#endif
 #endif
 
 #if MSMFB_DEBUG

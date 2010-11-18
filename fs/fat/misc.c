@@ -9,7 +9,30 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/buffer_head.h>
+#include <linux/genhd.h>
 #include "fat.h"
+
+static void fat_fs_uevent(struct super_block *s);
+
+/*
+ * Send change event to notify fat is remounted as read-only
+ */
+static void fat_fs_uevent(struct super_block *s)
+{
+	struct device *dev = s->s_bdev->bd_disk->driverfs_dev;
+	char *devpath = NULL;
+
+	if (!dev) {
+		printk(KERN_ERR "    Null device to send uevent\n");
+		return;
+	}
+
+	devpath = kobject_get_path(&dev->kobj, GFP_KERNEL);
+	if (devpath)
+		printk(KERN_INFO "    Send uevent devpath %s\n", devpath);
+
+	kobject_uevent(&dev->kobj, KOBJ_CHANGE);
+}
 
 /*
  * fat_fs_error reports a file system problem that might indicate fa data
@@ -37,6 +60,7 @@ void fat_fs_error(struct super_block *s, const char *fmt, ...)
 	else if (opts->errors == FAT_ERRORS_RO && !(s->s_flags & MS_RDONLY)) {
 		s->s_flags |= MS_RDONLY;
 		printk(KERN_ERR "    File system has been set read-only\n");
+		fat_fs_uevent(s);
 	}
 }
 EXPORT_SYMBOL_GPL(fat_fs_error);

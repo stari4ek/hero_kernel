@@ -29,6 +29,17 @@ static struct {
 	{ MDP_CSC_PFMVn(8), 0xffffffdc },
 
 	/* YUV -> RGB primary reverse matrix (set2) */
+#if defined(CONFIG_MSM_MDP30)
+	{ MDP_CSC_PRMVn(0), 0x270 },
+	{ MDP_CSC_PRMVn(1), 0x0 },
+	{ MDP_CSC_PRMVn(2), 0x331 },
+	{ MDP_CSC_PRMVn(3), 0x270 },
+	{ MDP_CSC_PRMVn(4), 0xffffff38 },
+	{ MDP_CSC_PRMVn(5), 0xfffffe61 },
+	{ MDP_CSC_PRMVn(6), 0x270 },
+	{ MDP_CSC_PRMVn(7), 0x409 },
+	{ MDP_CSC_PRMVn(8), 0x0 },
+#else
 	{ MDP_CSC_PRMVn(0), 0x254 },
 	{ MDP_CSC_PRMVn(1), 0x0 },
 	{ MDP_CSC_PRMVn(2), 0x331 },
@@ -38,6 +49,7 @@ static struct {
 	{ MDP_CSC_PRMVn(6), 0x254 },
 	{ MDP_CSC_PRMVn(7), 0x409 },
 	{ MDP_CSC_PRMVn(8), 0x0 },
+#endif
 
 #if defined (CONFIG_MSM_MDP30) || defined(CONFIG_MSM_MDP302)
 	{ 0x40480, 0x5d },

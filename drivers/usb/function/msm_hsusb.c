@@ -2539,7 +2539,7 @@ static irqreturn_t usb_car_kit_interrupt_handler(int irq, void *dev_id){
 	return IRQ_HANDLED;
 }
 
-static void usb_car_kit_irq_init(struct usb_info *ui)
+static int usb_car_kit_irq_init(struct usb_info *ui)
 {
 	int ret;
 
@@ -2587,19 +2587,33 @@ static void usb_car_kit_irq_init(struct usb_info *ui)
 	}else{
 		printk(KERN_ERR "fail to register dock switch!\n");
 	}
+	printk(KERN_INFO "%s(): OK, ui->usb_id_pin_gpio %d\n",
+				__func__,ui->usb_id_pin_gpio);
+	return 0;
 
 err_set_irq_wake:
 err_request_carkit_button_irq:
-	if (ui->usb_id_pin_gpio)
+	if (ui->usb_id_pin_gpio){
+		printk(KERN_ERR "%s(): free_irq, ui->usb_id_pin_gpio %d\n",
+			__func__,ui->usb_id_pin_gpio);
 		free_irq(ui->irq_usb_id_btn, 0);
+	}
+	printk(KERN_ERR "%s(): err_set_irq_wake, ui->usb_id_pin_gpio %d\n",
+			__func__,ui->usb_id_pin_gpio);
 err_get_carkit_detect_irq_num_failed:
 err_set_detect_gpio:
-	if (ui->usb_id_pin_gpio)
-		gpio_free(ui->usb_id_pin_gpio);
-err_request_detect_gpio:
-	printk(KERN_ERR "%s(): gpio_request  fail, ui->usb_id_pin_gpio %d\n",
+	if (ui->usb_id_pin_gpio){
+		printk(KERN_ERR "%s(): gpio_free, ui->usb_id_pin_gpio %d\n",
 			__func__,ui->usb_id_pin_gpio);
+		gpio_free(ui->usb_id_pin_gpio);
+	}
 
+	printk(KERN_ERR "%s(): err_set_detect_gpio, ui->usb_id_pin_gpio %d\n",
+			__func__,ui->usb_id_pin_gpio);
+err_request_detect_gpio:
+	printk(KERN_ERR "%s(): err_request_detect_gpio, ui->usb_id_pin_gpio %d\n",
+			__func__,ui->usb_id_pin_gpio);
+	return -1;
 }
 #endif
 

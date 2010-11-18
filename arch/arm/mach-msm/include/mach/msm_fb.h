@@ -281,4 +281,17 @@ extern int display_notifier_call_chain(unsigned long val, void *data);
 	register_display_notifier(&fn##_nb);		\
 }
 
+#if defined (CONFIG_USB_FUNCTION_PROJECTOR)
+/* For USB Projector to quick access the frame buffer info */
+struct msm_fb_info {
+	unsigned char *fb_addr;
+	int msmfb_area;
+	int xres;
+	int yres;
+};
+
+extern int msmfb_get_var(struct msm_fb_info *tmp);
+extern int msmfb_get_fb_area(void);
+#endif
+
 #endif

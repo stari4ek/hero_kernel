@@ -26,14 +26,18 @@
 
 static DECLARE_WAIT_QUEUE_HEAD(s6d04d1_vsync_wait);
 
+#define INTERVAL_ADJUSTING	300
+
 struct panel_info {
 	struct msm_mddi_client_data *client_data;
 	struct platform_device pdev;
 	struct msm_panel_data panel_data;
 	struct msmfb_callback *fb_callback;
 	struct work_struct panel_work;
+	struct work_struct adjust_panel_work;
 	struct workqueue_struct *fb_wq;
 	struct wake_lock idle_lock;
+	atomic_t frame_counter;
 	int s6d04d1_got_int;
 };
 
@@ -46,25 +50,29 @@ static struct platform_device mddi_samsung_cabc = {
         }
 };
 
+static void s6d04d1_adjust_work(struct work_struct *work){
+	struct panel_info * panel = container_of(work, struct panel_info, adjust_panel_work);
+	struct msm_mddi_client_data *client_data = panel->client_data;
+	struct msm_mddi_bridge_platform_data *bridge_data =
+		client_data->private_client_data;
+
+	if(bridge_data->adjust)
+		bridge_data->adjust(client_data);
+
+	atomic_set(&panel->frame_counter, INTERVAL_ADJUSTING);
+}
+
 static void s6d04d1_request_vsync(struct msm_panel_data *panel_data,
 		      struct msmfb_callback *callback)
 {
 	struct panel_info *panel = container_of(panel_data, struct panel_info,
 						panel_data);
 	struct msm_mddi_client_data *client_data = panel->client_data;
-	struct msm_mddi_bridge_platform_data *bridge =
-		client_data->private_client_data;
 
 	panel->fb_callback = callback;
 	if (panel->s6d04d1_got_int) {
 		panel->s6d04d1_got_int = 0;
 		client_data->activate_link(client_data); /* clears interrupt */
-
-		if (bridge->adjust) {
-			wake_lock(&panel->idle_lock);
-			bridge->adjust(client_data);
-			wake_unlock(&panel->idle_lock);
-		}
 	}
 }
 
@@ -161,15 +169,23 @@ static int s6d04d1_shutdown(struct msm_panel_data *panel_data)
 		client_data->private_client_data;
 
 	pr_debug("%s\n", __func__);
-	return bridge_data->shutdown(bridge_data, client_data);
+	if(bridge_data->shutdown)
+		return bridge_data->shutdown(bridge_data, client_data);
+
+	return 0;
 }
 
 irqreturn_t s6d04d1_vsync_interrupt(int irq, void *data)
 {
 	struct panel_info *panel = data;
-
 	panel->s6d04d1_got_int = 1;
-	if (panel->fb_callback) {
+
+	if (atomic_dec_and_test(&panel->frame_counter)) {
+		schedule_work(&panel->adjust_panel_work);
+		return IRQ_HANDLED;
+	}
+
+	if (panel->fb_callback && atomic_read(&panel->frame_counter) > 0) {
 		panel->fb_callback->func(panel->fb_callback);
 		panel->fb_callback = NULL;
 	}
@@ -273,6 +289,9 @@ static int mddi_s6d04d1_probe(struct platform_device *pdev)
 	platform_device_register(&panel->pdev);
 	wake_lock_init(&panel->idle_lock, WAKE_LOCK_IDLE, "s6d04d1_idle_lock");
 
+	INIT_WORK(&panel->adjust_panel_work, s6d04d1_adjust_work);
+	atomic_set(&panel->frame_counter, INTERVAL_ADJUSTING);
+
 	return 0;
 }
 
@@ -297,4 +316,3 @@ static int __init mddi_client_s6d04d1_init(void)
 }
 
 module_init(mddi_client_s6d04d1_init);
-

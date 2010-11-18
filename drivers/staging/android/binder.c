@@ -691,7 +691,7 @@ static struct binder_buffer *binder_alloc_buf(struct binder_proc *proc,
 
 	if (is_async &&
 	    proc->free_async_space < size + sizeof(struct binder_buffer)) {
-		//if (binder_debug_mask & BINDER_DEBUG_BUFFER_ALLOC)
+		if (binder_debug_mask & BINDER_DEBUG_BUFFER_ALLOC)
 			printk(KERN_ERR "binder: %d: binder_alloc_buf size %zd f"
 			       "ailed, no async space left\n", proc->pid, size);
 		return NULL;
@@ -916,10 +916,8 @@ binder_new_node(struct binder_proc *proc, void __user *ptr, void __user *cookie)
 	}
 
 	node = kzalloc(sizeof(*node), GFP_KERNEL);
-	if (node == NULL) {
-		pr_err("binder: error, %s\n", __func__);
+	if (node == NULL)
 		return NULL;
-	}
 	binder_stats.obj_created[BINDER_STAT_NODE]++;
 	rb_link_node(&node->rb_node, parent, p);
 	rb_insert_color(&node->rb_node, &proc->nodes);
@@ -1055,10 +1053,8 @@ binder_get_ref_for_node(struct binder_proc *proc, struct binder_node *node)
 			return ref;
 	}
 	new_ref = kzalloc(sizeof(*ref), GFP_KERNEL);
-	if (new_ref == NULL) {
-		pr_err("binder: error, %s\n", __func__);
+	if (new_ref == NULL)
 		return NULL;
-	}
 	binder_stats.obj_created[BINDER_STAT_REF]++;
 	new_ref->debug_id = ++binder_last_id;
 	new_ref->proc = proc;
@@ -1387,7 +1383,6 @@ binder_transaction(struct binder_proc *proc, struct binder_thread *thread,
 	/* TODO: reuse incoming transaction for reply */
 	t = kzalloc(sizeof(*t), GFP_KERNEL);
 	if (t == NULL) {
-		pr_err("binder: error, %s\n", __func__);
 		return_error = BR_FAILED_REPLY;
 		goto err_alloc_t_failed;
 	}
@@ -1395,7 +1390,6 @@ binder_transaction(struct binder_proc *proc, struct binder_thread *thread,
 
 	tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);
 	if (tcomplete == NULL) {
-		pr_err("binder: error, %s\n", __func__);
 		return_error = BR_FAILED_REPLY;
 		goto err_alloc_tcomplete_failed;
 	}
@@ -1579,7 +1573,6 @@ binder_transaction(struct binder_proc *proc, struct binder_thread *thread,
 			}
 			target_fd = task_get_unused_fd_flags(target_proc, O_CLOEXEC);
 			if (target_fd < 0) {
-				pr_err("binder: error, %s\n", __func__);
 				fput(file);
 				return_error = BR_FAILED_REPLY;
 				goto err_get_unused_fd_failed;

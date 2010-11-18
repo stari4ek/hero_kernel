@@ -91,6 +91,7 @@ struct gpio_event_matrix_info {
 	void (*setup_ninputs_gpio)(void);
 	/* disable some gpio as wakeup source */
 	unsigned int notintr_gpios;
+	unsigned int detect_phone_status;
 };
 
 /* Directly connected inputs and outputs */
@@ -174,6 +175,9 @@ uint16_t gpio_axis_4bit_gray_map(
 			struct gpio_event_axis_info *info, uint16_t in);
 uint16_t gpio_axis_5bit_singletrack_map(
 			struct gpio_event_axis_info *info, uint16_t in);
+
+int gpio_event_get_phone_call_status(void);
+
 #ifdef CONFIG_MACH_HEROC
 uint8_t button_filter(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value, unsigned long *key_pressed);

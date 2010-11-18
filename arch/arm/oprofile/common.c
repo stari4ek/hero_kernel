@@ -79,8 +79,6 @@ static void op_arm_stop(void)
 #ifdef CONFIG_PM
 static int op_arm_suspend(struct sys_device *dev, pm_message_t state)
 {
-	/* return directly to prevent warning */
-	return 0;
 	mutex_lock(&op_arm_mutex);
 	if (op_arm_enabled)
 		op_arm_model->stop();
@@ -90,8 +88,6 @@ static int op_arm_suspend(struct sys_device *dev, pm_message_t state)
 
 static int op_arm_resume(struct sys_device *dev)
 {
-	/* return directly to prevent warning */
-	return 0;
 	mutex_lock(&op_arm_mutex);
 	if (op_arm_enabled && op_arm_model->start())
 		op_arm_enabled = 0;

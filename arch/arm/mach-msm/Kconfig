@@ -54,55 +54,6 @@ config MSM_MDP31
 	depends on ARCH_QSD8X50
 	default y
 
-# ASTAR
-menu "7hero"
-
-config 7H_CPUCLOCK_EXTENDED
-	bool "Use extended table of cpu clock frequencies"
-	default n
-	depends on (TURBO_MODE)
-	help
-	  Use extended table of frequencies for MSM-7200a turbo. Mostly for
-	  overclocking/underclocking. It does not change list of used
-	  frequencies.
-
-choice
-	prompt "Choose list of available frequencies"
-	depends on (7H_CPUCLOCK_EXTENDED)
-	default 7H_CPUCLOCK_FREQS_ALL
-	help
-	   This option allows to select final list of cpu frequencies, available
-	   for cpufreq module.
-
-config 7H_CPUCLOCK_FREQS_633
-	bool "Max: 633.6MHz"
-	help
-	  Use 633.6MHz instead of default 528MHz for max frequency.
-
-config 7H_CPUCLOCK_FREQS_652
-	bool "Max: 652.8MHz"
-	help
-	  Use 652.8MHz instead of default 528MHz for max frequency.
-
-config 7H_CPUCLOCK_FREQS_691
-	bool "Max: 691.2MHz"
-	help
-	  Use 691.2MHz instead of default 528MHz for max frequency.
-
-config 7H_CPUCLOCK_FREQS_710
-	bool "Max: 710.4MHz"
-	help
-	  Use 710.4MHz instead of default 528MHz for max frequency.
-
-config 7H_CPUCLOCK_FREQS_ALL
-	bool "All"
-	help
-	  Use all available frequencies from cpu clock table.
-
-endchoice
-
-endmenu # 7hero
-
 config TURBO_MODE
 	bool "Turbo mode"
 	depends on ARCH_MSM7225 || ARCH_MSM7X00A
@@ -411,6 +362,10 @@ config HTC_BATTCHG
 	depends on MSM_ONCRPCROUTER && POWER_SUPPLY
 	default n
 	bool "HTC battery / charger driver"
+
+config HTC_OFFMODE_CHARGING
+       default n
+       bool "Monitor power key behavior"
 
 config HTC_BATTCHG_SMEM
 	depends on HTC_BATTCHG
@@ -734,28 +689,12 @@ config MSM_CPU_FREQ_SCREEN_ON
 
 endif # MSM_CPU_FREQ_SCREEN
 
-	# ASTAR
-if 7H_CPUCLOCK_EXTENDED
 config MSM_CPU_FREQ_ONDEMAND_MAX
-	int "Ondemand Max"
-	range 633600 633600 if 7H_CPUCLOCK_FREQS_633
-	range 652800 652800 if 7H_CPUCLOCK_FREQS_652
-	range 691200 691200 if 7H_CPUCLOCK_FREQS_691
-	range 710400 710400 if 7H_CPUCLOCK_FREQS_710
-	range 518400 518400 if 7H_CPUCLOCK_FREQS_ALL
-endif
-	# !ASTAR
-
-if !7H_CPUCLOCK_EXTENDED
-config MSM_CPU_FREQ_ONDEMAND_MAX
-	int "Ondemand Max"
-	range 384000 528000
+	int "Max"
 	default 384000
-endif
-
 
 config MSM_CPU_FREQ_ONDEMAND_MIN
-	int "Ondemand Min"
+	int "Min"
 	default 245760
 
 config MSM_HW3D
@@ -965,3 +904,9 @@ config AXI_SCREEN_POLICY
 	default n
 	help
 		Simple AXI scaling based on screen ON/OFF and PWRC.
+
+config HTC_ONMODE_CHARGING
+	bool "On Mode Charging Icon Support"
+	default n
+	help 
+		support on mode charing icon

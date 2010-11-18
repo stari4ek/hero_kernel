@@ -1012,6 +1012,80 @@ static int yaffs_WriteNewChunkWithTagsToNAND(struct yaffs_DeviceStruct *dev,
 }
 
 /*
+ * Oldest Dirty Sequence Number handling.
+ */
+
+/* yaffs_CalcOldestDirtySequence()
+ * yaffs_FindOldestDirtySequence()
+ * Calculate the oldest dirty sequence number if we don't know it.
+ */
+static int yaffs_CalcOldestDirtySequence(yaffs_Device *dev)
+{
+	int i;
+	__u32 seq;
+	yaffs_BlockInfo *b = 0;
+
+	if (!dev->isYaffs2)
+		return 0;
+
+	/* Find the oldest dirty sequence number. */
+	seq = dev->sequenceNumber;
+	for (i = dev->internalStartBlock; i <= dev->internalEndBlock; i++) {
+		b = yaffs_GetBlockInfo(dev, i);
+		if (b->blockState == YAFFS_BLOCK_STATE_FULL &&
+		    (b->pagesInUse - b->softDeletions) < dev->nChunksPerBlock &&
+		    b->sequenceNumber < seq)
+				seq = b->sequenceNumber;
+	}
+	return seq;
+}
+
+
+static void yaffs_FindOldestDirtySequence(yaffs_Device *dev)
+{
+	if (dev->isYaffs2 && !dev->oldestDirtySequence)
+		dev->oldestDirtySequence =
+			yaffs_CalcOldestDirtySequence(dev);
+
+#if 0
+	if (!yaffs_SkipVerification(dev) &&
+		dev->oldestDirtySequence != yaffs_CalcOldestDirtySequence(dev))
+		YBUG();
+
+#endif
+}
+
+/*
+ * yaffs_ClearOldestDirtySequence()
+ * Called when a block is erased or marked bad. (ie. when its sequenceNumber
+ * becomes invalid). If the value matches the oldest then we clear
+ * dev->oldestDirtySequence to force its recomputation.
+ */
+static void yaffs_ClearOldestDirtySequence(yaffs_Device *dev,
+					yaffs_BlockInfo *bi)
+{
+	if (!dev->isYaffs2)
+		return;
+
+	if (!bi || bi->sequenceNumber == dev->oldestDirtySequence)
+		dev->oldestDirtySequence = 0;
+}
+
+/*
+ * yaffs_UpdateOldestDirtySequence()
+ * Update the oldest dirty sequence number whenever we dirty a block.
+ * Only do this if the oldestDirtySequence is actually being tracked.
+ */
+static void yaffs_UpdateOldestDirtySequence(yaffs_Device *dev,
+					yaffs_BlockInfo *bi)
+{
+	if (dev->isYaffs2 && dev->oldestDirtySequence) {
+		if (dev->oldestDirtySequence > bi->sequenceNumber)
+			dev->oldestDirtySequence = bi->sequenceNumber;
+	}
+}
+
+/*
  * Block retiring for handling a broken block.
  */
 
@@ -1020,6 +1094,8 @@ static void yaffs_RetireBlock(yaffs_Device *dev, int blockInNAND)
 	yaffs_BlockInfo *bi = yaffs_GetBlockInfo(dev, blockInNAND);
 
 	yaffs_InvalidateCheckpoint(dev);
+
+	yaffs_ClearOldestDirtySequence(dev, bi);
 
 	if (yaffs_MarkBlockBad(dev, blockInNAND) != YAFFS_OK) {
 		if (yaffs_EraseBlockInNAND(dev, blockInNAND) != YAFFS_OK) {
@@ -1665,6 +1741,7 @@ static void yaffs_SoftDeleteChunk(yaffs_Device *dev, int chunk)
 	if (theBlock) {
 		theBlock->softDeletions++;
 		dev->nFreeChunks++;
+		yaffs_UpdateOldestDirtySequence(dev, theBlock);
 	}
 }
 
@@ -2588,31 +2665,10 @@ static void yaffs_DeinitialiseBlocks(yaffs_Device *dev)
 static int yaffs_BlockNotDisqualifiedFromGC(yaffs_Device *dev,
 					yaffs_BlockInfo *bi)
 {
-	int i;
-	__u32 seq;
-	yaffs_BlockInfo *b;
-
 	if (!dev->isYaffs2)
 		return 1;	/* disqualification only applies to yaffs2. */
 
-
-	/* Find the oldest dirty sequence number if we don't know it and save it
-	 * so we don't have to keep recomputing it.
-	 */
-	if (!dev->oldestDirtySequence) {
-		seq = dev->sequenceNumber;
-
-		for (i = dev->internalStartBlock; i <= dev->internalEndBlock;
-				i++) {
-			b = yaffs_GetBlockInfo(dev, i);
-			if (b->blockState == YAFFS_BLOCK_STATE_FULL &&
-			    (b->pagesInUse - b->softDeletions) <
-			    dev->nChunksPerBlock && b->sequenceNumber < seq) {
-				seq = b->sequenceNumber;
-			}
-		}
-		dev->oldestDirtySequence = seq;
-	}
+	yaffs_FindOldestDirtySequence(dev);
 
 	/* Can't do gc of this block if there are any blocks older than this one that have
 	 * discarded pages.
@@ -2715,8 +2771,6 @@ static int yaffs_FindBlockForGarbageCollection(yaffs_Device *dev,
 		   dev->nChunksPerBlock - pagesInUse, prioritised));
 	}
 
-	dev->oldestDirtySequence = 0;
-
 	if (dirtiest > 0)
 		dev->nonAggressiveSkip = 2;
 
@@ -2736,6 +2790,8 @@ static void yaffs_BlockBecameDirty(yaffs_Device *dev, int blockNo)
 	T(YAFFS_TRACE_GC | YAFFS_TRACE_ERASE,
 		(TSTR("yaffs_BlockBecameDirty block %d state %d %s"TENDSTR),
 		blockNo, bi->blockState, (bi->needsRetiring) ? "needs retiring" : ""));
+
+	yaffs_ClearOldestDirtySequence(dev, bi);
 
 	bi->blockState = YAFFS_BLOCK_STATE_DIRTY;
 
@@ -3582,6 +3638,8 @@ void yaffs_DeleteChunk(yaffs_Device *dev, int chunkId, int markNAND, int lyn)
 			 chunkId));
 
 	bi = yaffs_GetBlockInfo(dev, block);
+
+	yaffs_UpdateOldestDirtySequence(dev, bi);
 
 	T(YAFFS_TRACE_DELETION,
 	  (TSTR("line %d delete of chunk %d" TENDSTR), lyn, chunkId));
@@ -5279,23 +5337,26 @@ static int yaffs_UnlinkWorker(yaffs_Object *obj)
 		 * Instead, we do the following:
 		 * - Select a hardlink.
 		 * - Unhook it from the hard links
-		 * - Unhook it from its parent directory (so that the rename can work)
+		 * - Move it from its parent directory (so that the rename can work)
 		 * - Rename the object to the hardlink's name.
 		 * - Delete the hardlink
 		 */
 
 		yaffs_Object *hl;
+		yaffs_Object *parent;
 		int retVal;
 		YCHAR name[YAFFS_MAX_NAME_LENGTH + 1];
 
 		hl = ylist_entry(obj->hardLinks.next, yaffs_Object, hardLinks);
 
-		ylist_del_init(&hl->hardLinks);
-		ylist_del_init(&hl->siblings);
-
 		yaffs_GetObjectName(hl, name, YAFFS_MAX_NAME_LENGTH + 1);
+		parent = hl->parent;
 
-		retVal = yaffs_ChangeObjectName(obj, hl->parent, name, 0, 0);
+		ylist_del_init(&hl->hardLinks);
+
+		yaffs_AddObjectToDirectory(obj->myDev->unlinkedDir, hl);
+
+		retVal = yaffs_ChangeObjectName(obj,parent, name, 0, 0);
 
 		if (retVal == YAFFS_OK)
 			retVal = yaffs_DoGenericObjectDeletion(hl);

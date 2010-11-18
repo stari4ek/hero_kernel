@@ -291,14 +291,15 @@ static void mdp_dma_to_mddi(void *priv, uint32_t addr, uint32_t stride,
 			    uint32_t y)
 {
 	struct mdp_info *mdp = priv;
-	uint32_t dma2_cfg;
+	uint32_t dma2_cfg = 0;
 	uint16_t ld_param = 0; /* 0=PRIM, 1=SECD, 2=EXT */
 
+#if !defined(CONFIG_MSM_MDP30)
 	dma2_cfg = DMA_PACK_TIGHT |
 		DMA_PACK_ALIGN_LSB |
 		DMA_OUT_SEL_AHB |
 		DMA_IBUF_NONCONTIGUOUS;
-
+#endif
 	dma2_cfg |= mdp->format;
 
 #if defined CONFIG_MSM_MDP22 || defined CONFIG_MSM_MDP30
@@ -314,7 +315,9 @@ static void mdp_dma_to_mddi(void *priv, uint32_t addr, uint32_t stride,
 
 	dma2_cfg |= DMA_MDDI_DMAOUT_LCD_SEL_PRIMARY;
 
+#if !defined(CONFIG_MSM_MDP30)
 	dma2_cfg |= DMA_DITHER_EN;
+#endif
 
 #if defined(CONFIG_FB_565)
 	dma2_cfg |= DMA_DSTC0G_6BITS | DMA_DSTC1B_5BITS | DMA_DSTC2R_5BITS;

@@ -420,10 +420,11 @@ struct msm_snapshot_pp_status {
 #define CFG_GET_AF_MAX_STEPS		26
 #define CFG_GET_PICT_MAX_EXP_LC		27
 #define CFG_I2C_IOCTL_R_OTP	28
-#define DFG_SET_OV_LSC	29 	/*vincent for LSC calibration*/
+#define CFG_SET_OV_LSC	29 	/*vincent for LSC calibration*/
 #define CFG_SET_SHARPNESS 30
 #define CFG_SET_SATURATION 31
-#define CFG_MAX	32
+#define CFG_SET_OV_LSC_RAW_CAPTURE 32/*20100330 vincent for LSC calibration*/
+#define CFG_MAX	33
 
 #define MOVE_NEAR	0
 #define MOVE_FAR	1

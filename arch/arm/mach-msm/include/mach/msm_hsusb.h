@@ -78,5 +78,5 @@ struct msm_hsusb_platform_data {
 	bool enable_car_kit_detect;
 #endif
 };
-
+int usb_get_connect_type(void);
 #endif

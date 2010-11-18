@@ -119,15 +119,20 @@ static int
 __set_brightness(struct cabc *cabc, int brightness, u8 dimming)
 {
 	struct msm_mddi_client_data *client_data = cabc_get_client(cabc);
-
+	int shrink_br;
 	/* no need to check brightness > LED_FULL, the led class
 	 * already does */
 	printk(KERN_INFO "brightness = %d, %s ls-(%s)\n",
 		brightness, str_bc_mode[cabc->mode_bc],
 		(test_bit(LS_STATE, &cabc->status) ? "on" : "off"));
 
+	if(cabc->cabc_config->shrink && cabc->cabc_config->shrink_br)
+		shrink_br = cabc->cabc_config->shrink_br(brightness);
+	else
+		shrink_br = cabc_shrink(cabc, brightness);
+
 	mutex_lock(&cabc->data_lock);
-        client_data->remote_write(client_data, (u8)brightness, 0x94);
+        client_data->remote_write(client_data, (u8)shrink_br, 0x94);
 	g_brightness = brightness;
 	mutex_unlock(&cabc->data_lock);
 	return 0;

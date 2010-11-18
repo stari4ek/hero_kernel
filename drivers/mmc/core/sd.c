@@ -16,6 +16,7 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
+#include <linux/kthread.h>
 
 #include "core.h"
 #include "bus.h"
@@ -459,7 +460,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 			if (!err) {
 				if (retries > 1) {
 					printk(KERN_WARNING
-					       "%s: recovered\n", 
+					       "%s: recovered\n",
 					       mmc_hostname(host));
 				}
 				break;
@@ -537,7 +538,17 @@ err:
 
 	return err;
 }
-
+void mmc_sd_reset_card(struct mmc_card *card )
+{
+	mdelay(10);
+	mmc_power_off(card->host);
+	mdelay(10);
+	mmc_power_up(card->host);
+	mdelay(10);
+	mmc_sd_init_card(card->host, card->host->ocr, card->host->card);
+	mdelay(50);
+}
+EXPORT_SYMBOL(mmc_sd_reset_card);
 /*
  * Host is being removed. Free up the current card.
  */
@@ -548,6 +559,36 @@ static void mmc_sd_remove(struct mmc_host *host)
 
 	mmc_remove_card(host->card);
 	host->card = NULL;
+}
+
+/*
+ * When "deferred resume" fails, run another thread to stop mmcqd.
+ */
+static int mmc_sd_removal_thread(void *d)
+{
+	struct mmc_host *host = d;
+
+	mmc_sd_remove(host);
+
+	mmc_claim_host(host);
+	mmc_detach_bus(host);
+	mmc_release_host(host);
+
+	return 0;
+}
+
+static void mmc_sd_err_with_deferred_resume(struct mmc_host *host)
+{
+	if (mmc_bus_start_resume(host)) {
+		host->bus_resume_flags |= MMC_BUSRESUME_FAILS_RESUME;
+		kthread_run(mmc_sd_removal_thread, host, "mmcrd");
+	} else {
+		mmc_sd_remove(host);
+
+		mmc_claim_host(host);
+		mmc_detach_bus(host);
+		mmc_release_host(host);
+	}
 }
 
 /*
@@ -562,7 +603,6 @@ static void mmc_sd_detect(struct mmc_host *host)
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
-       
 	mmc_claim_host(host);
 
 	/*
@@ -587,6 +627,10 @@ static void mmc_sd_detect(struct mmc_host *host)
 #endif
 	mmc_release_host(host);
 
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+	if (err)
+		mmc_sd_err_with_deferred_resume(host);
+#else
 	if (err) {
 		mmc_sd_remove(host);
 
@@ -594,6 +638,8 @@ static void mmc_sd_detect(struct mmc_host *host)
 		mmc_detach_bus(host);
 		mmc_release_host(host);
 	}
+#endif
+
 }
 
 #ifdef CONFIG_MMC_UNSAFE_RESUME
@@ -651,6 +697,10 @@ static void mmc_sd_resume(struct mmc_host *host)
 #endif
 	mmc_release_host(host);
 
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+	if (err)
+		mmc_sd_err_with_deferred_resume(host);
+#else
 	if (err) {
 		mmc_sd_remove(host);
 
@@ -658,6 +708,7 @@ static void mmc_sd_resume(struct mmc_host *host)
 		mmc_detach_bus(host);
 		mmc_release_host(host);
 	}
+#endif
 
 }
 

@@ -1511,7 +1511,7 @@ retry_find:
 			count_vm_event(PGMAJFAULT);
 		}
 		did_readaround = 1;
-		ra_pages = max_sane_readahead(file->f_ra.ra_pages);
+		ra_pages = max_sane_readahead(file->f_ra.rar_pages);
 		if (ra_pages) {
 			pgoff_t start = 0;
 

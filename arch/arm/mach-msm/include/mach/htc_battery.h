@@ -19,6 +19,10 @@
 #define BATT_EVENT_SUSPEND	0x01
 
 #define CHECK_CHG           0X64
+#define SET_ICL500		0X65
+#define SET_ICL100		0X66
+#define CHECK_INT2		0X67
+
 /* information about the system we're running on */
 extern unsigned int system_rev;
 

@@ -29,6 +29,8 @@
 #include <linux/curcial_oj.h>
 #endif
 
+unsigned int g_matrix_irq[20];
+
 struct gpio_kp {
 	struct gpio_event_input_devs *input_devs;
 	struct gpio_event_matrix_info *keypad_info;
@@ -155,7 +157,7 @@ static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 #ifdef CONFIG_OPTICALJOYSTICK_CRUCIAL
 	if ((machine_is_bravo() || machine_is_legend() || machine_is_latte()
 			|| machine_is_liberty() || machine_is_paradise() ||
-				machine_is_bravoc() || machine_is_bee()) &&
+				machine_is_bravoc() || machine_is_buzz()) &&
 							keycode == BTN_MOUSE) {
 		if (need_send_spec_key == pressed) {
 			curcial_oj_send_key(keycode, pressed);
@@ -310,10 +312,14 @@ static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 			disable_irq(irq);
 			continue;
 		}
+
 		err = set_irq_wake(irq, 1);
 		if (err) {
 			pr_err("gpiomatrix: set_irq_wake failed for input %d, "
 				"irq %d\n", mi->input_gpios[i], irq);
+		}else{
+			g_matrix_irq[i] = irq;
+			pr_info("gpiomatrix: irq %d = %d\n", i,g_matrix_irq[i]);
 		}
 		disable_irq(irq);
 	}
@@ -334,12 +340,42 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 	int i;
 	int err;
 	int key_count;
+	int phone_call_status;
+	static int irq_status = 1;
 	struct gpio_kp *kp;
 	struct gpio_event_matrix_info *mi;
 
+	printk(KERN_INFO "%s: func: %d\n",
+				__func__, func);
 	mi = container_of(info, struct gpio_event_matrix_info, info);
 	if (func == GPIO_EVENT_FUNC_SUSPEND || func == GPIO_EVENT_FUNC_RESUME) {
 		/* TODO: disable scanning */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+		if(mi->detect_phone_status == 0){
+			return 0;
+		}
+		phone_call_status = gpio_event_get_phone_call_status() &0x01;
+		printk(KERN_INFO "%s: mi->ninputs: %d, func&0x01 = %d, phone_call_status=%d\n",
+				__func__,mi->ninputs,func&0x01,phone_call_status);
+
+		if(irq_status != ((func&0x01) |phone_call_status)){
+			irq_status = ((func&0x01) |phone_call_status);
+			printk(KERN_INFO "%s: irq_status %d \n",
+				__func__,irq_status);
+		}else{
+			printk(KERN_INFO "%s: irq_status %d, did not change\n",
+				__func__,irq_status);
+			return 0;
+		}
+		for (i = 0; i < mi->ninputs; i++) {
+			err = set_irq_wake(g_matrix_irq[i], irq_status);
+			if (err) {
+				pr_err("gpiomatrix: set_irq_wake failed ,irq_status %d ,for input irq %d,%d\n",  irq_status,i, g_matrix_irq[i]);
+			}else{
+				printk(KERN_INFO "%s: set ok,irq_status %d, irq %d = %d\n", __func__, irq_status, i,g_matrix_irq[i]);
+			}
+		}
+#endif
 		return 0;
 	}
 

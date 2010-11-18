@@ -77,6 +77,22 @@ static void synaptics_ts_late_resume(struct early_suspend *h);
 #endif
 
 static struct synaptics_ts_data *gl_ts;
+static const char SYNAPTICSNAME[]	= "Synaptics_T1007";
+static uint32_t syn_panel_version;
+
+static ssize_t touch_vendor_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	sprintf(buf, "%s_%#x\n", SYNAPTICSNAME, syn_panel_version);
+	ret = strlen(buf) + 1;
+
+	return ret;
+}
+
+static DEVICE_ATTR(vendor, 0444, touch_vendor_show, NULL);
+
 static struct kobject *android_touch_kobj;
 
 static ssize_t debug_level_show(struct device *dev,
@@ -398,6 +414,11 @@ static int synaptics_touch_sysfs_init(void)
 		ret = -ENOMEM;
 		return ret;
 	}
+	ret = sysfs_create_file(android_touch_kobj, &dev_attr_vendor.attr);
+	if (ret) {
+		printk(KERN_ERR "touch_sysfs_init: sysfs_create_group failed\n");
+		return ret;
+	}
 	ret = sysfs_create_file(android_touch_kobj, &dev_attr_debug_level.attr);
 	if (ret) {
 		printk(KERN_ERR "%s: sysfs_create_file failed\n", __func__);
@@ -614,13 +635,12 @@ static void synaptics_ts_work_func(struct work_struct *work)
 				 */
 				 if (ts->grip_suppression[0] == 2 || z == 0) {
 					input_report_abs(ts->input_dev, ABS_MT_AMPLITUDE, z << 16 | w);
-					input_report_abs(ts->input_dev, ABS_MT_POSITION, (!finger2_pressed) << 31 | pos[0][0] << 16 | pos[0][1]);
+					input_report_abs(ts->input_dev, ABS_MT_POSITION,
+						(!(finger2_pressed && ts->grip_suppression[1] == 2)) << 31 | pos[0][0] << 16 | pos[0][1]);
 				}
-				if (finger2_pressed) {
-					if (ts->grip_suppression[1] == 2) {
+				if (finger2_pressed && ts->grip_suppression[1] == 2) {
 						input_report_abs(ts->input_dev, ABS_MT_AMPLITUDE, z << 16 | w);
 						input_report_abs(ts->input_dev, ABS_MT_POSITION, 1 << 31 | pos[1][0] << 16 | pos[1][1]);
-					}
 				}
 #else
 				if (ts->grip_suppression[0] == 2 || z == 0) {
@@ -765,6 +785,7 @@ static int synaptics_ts_probe(
 	}
 	printk(KERN_INFO "synaptics_ts_probe: Product Major Version %x\n", ret);
 	panel_version = ret << 8;
+	syn_panel_version = panel_version;
 	ret = i2c_smbus_read_byte_data(ts->client, 0xe5);
 	if (ret < 0) {
 		printk(KERN_ERR "i2c_smbus_read_byte_data failed\n");

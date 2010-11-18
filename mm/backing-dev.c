@@ -114,6 +114,25 @@ static ssize_t name##_show(struct device *dev,				\
 
 BDI_SHOW(read_ahead_kb, K(bdi->ra_pages))
 
+static ssize_t read_around_kb_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct backing_dev_info *bdi = dev_get_drvdata(dev);
+	char *end;
+	unsigned long read_around_kb;
+	ssize_t ret = -EINVAL;
+
+	read_around_kb = simple_strtoul(buf, &end, 10);
+	if (*buf && (end[0] == '\0' || (end[0] == '\n' && end[1] == '\0'))) {
+		bdi->rar_pages = read_around_kb >> (PAGE_SHIFT - 10);
+		ret = count;
+	}
+	return ret;
+}
+
+BDI_SHOW(read_around_kb, K(bdi->rar_pages))
+
 static ssize_t min_ratio_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -154,6 +173,7 @@ BDI_SHOW(max_ratio, bdi->max_ratio)
 
 static struct device_attribute bdi_dev_attrs[] = {
 	__ATTR_RW(read_ahead_kb),
+	__ATTR_RW(read_around_kb),
 	__ATTR_RW(min_ratio),
 	__ATTR_RW(max_ratio),
 	__ATTR_NULL,

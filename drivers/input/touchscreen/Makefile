@@ -6,7 +6,6 @@
 
 wm97xx-ts-y := wm97xx-core.o
 
-obj-$(CONFIG_TOUCHSCREEN_ATMEL)	+= atmel.o
 obj-$(CONFIG_TOUCHSCREEN_ADS7846)	+= ads7846.o
 obj-$(CONFIG_TOUCHSCREEN_ATMEL_TSADCC)	+= atmel_tsadcc.o
 obj-$(CONFIG_TOUCHSCREEN_BITSY)		+= h3600_ts_input.o
@@ -29,6 +28,7 @@ obj-$(CONFIG_TOUCHSCREEN_MSM)		+= msm_ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI)	+= synaptics_i2c_rmi.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_T1007)	+= synaptics_t1007.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_T1021)       += synaptics_t1021.o
+obj-$(CONFIG_TOUCHSCREEN_ATMEL) += atmel.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHIT213)	+= touchit213.o
 obj-$(CONFIG_TOUCHSCREEN_TSSC_MANAGER)	+= tssc_manager.o calibrate.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHRIGHT)	+= touchright.o

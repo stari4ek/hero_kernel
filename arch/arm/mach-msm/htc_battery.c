@@ -874,6 +874,8 @@ static ssize_t htc_battery_show_batt_attr(struct device *dev,
 		return htc_batt_info.func_show_batt_attr(attr, buf);
 		break;
 	}
+
+	return 0;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1147,9 +1149,9 @@ static ssize_t htc_battery_set_full_level(struct device *dev,
 				     struct device_attribute *attr,
 				     const char *buf, size_t count)
 {
-	int rc;
+	int rc = 0;
 	unsigned long percent = 100;
-	unsigned long *param;
+	unsigned long param = 0;
 
 	percent = simple_strtoul(buf, NULL, 10);
 
@@ -1170,7 +1172,7 @@ static ssize_t htc_battery_set_full_level(struct device *dev,
 	htc_batt_info.rep.full_level = percent;
 	param = percent;
 	blocking_notifier_call_chain(&cable_status_notifier_list,
-		0xff, param);
+		0xff, (void *) &param);
 	mutex_unlock(&htc_batt_info.lock);
 			}
 	rc = 0;
@@ -1346,7 +1348,7 @@ static int htc_battery_core_probe(struct platform_device *pdev)
 	if (IS_ERR(endpoint)) {
 		BATT_ERR("%s: init rpc failed! rc = %ld",
 		       __func__, PTR_ERR(endpoint));
-		return rc;
+		return -EINVAL;
 	}
 
 	/* init power supplier framework */
@@ -1473,7 +1475,7 @@ static int ds2784_notifier_func(struct notifier_block *nfb,
 	if (param)
 		arg = *(u8 *)param;
 
-	BATT_LOG("ds2784_notify: %d %d", action, arg);
+	BATT_LOG("ds2784_notify: %ld %d", action, arg);
 	switch (action) {
 	case DS2784_CHARGING_CONTROL:
 		if (htc_batt_info.charger == LINEAR_CHARGER)
@@ -1523,7 +1525,6 @@ static int htc_battery_probe(struct platform_device *pdev)
 	if (pdata->guage_driver == GUAGE_DS2784)
 		ds2784_register_notifier(&ds2784_notifier);
 
-	platform_driver_register(&htc_battery_core_driver);
 	return 0;
 }
 
@@ -1562,6 +1563,7 @@ static int __init htc_battery_init(void)
 	mutex_init(&htc_batt_info.rpc_lock);
 	usb_register_notifier(&usb_status_notifier);
 	platform_driver_register(&htc_battery_driver);
+	platform_driver_register(&htc_battery_core_driver);
 	batt_register_client(&batt_notify);
 	/* Jay, The msm_fb need to consult htc_battery for power policy */
 	display_notifier(htc_power_policy, NOTIFY_POWER);

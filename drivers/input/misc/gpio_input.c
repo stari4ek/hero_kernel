@@ -277,6 +277,8 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 				disable_irq(gpio_to_irq(di->keymap[i].gpio));
 		spin_unlock_irqrestore(&ds->irq_lock, irqflags);
 		hrtimer_cancel(&ds->timer);
+		printk(KERN_INFO "%s: func: %d\n",
+				__func__, func);
 		return 0;
 	}
 	if (func == GPIO_EVENT_FUNC_RESUME) {

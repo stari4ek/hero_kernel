@@ -43,7 +43,9 @@ struct smem_sleep_stat {
 	uint32_t garbage_pkt_cnt;
 	uint32_t zone_based_reg_cnt;
 	uint32_t idle_hand_off_cnt;
-	uint32_t reserved[7];
+	uint32_t mo_2g_probe_cnt;
+	uint32_t mo_3g_probe_cnt;
+	uint32_t reserved[5];
 };
 static struct smem_sleep_stat *sleep_stat;
 static struct smem_sleep_stat *get_smem_sleep_stat(void)
@@ -62,12 +64,16 @@ static void print_sleep_stat(int flag)
 	if (!sleep_stat)
 		return;
 
-	pr_info("sleep_stat.%d: %ds %d %ds %d %d %d %d "
+	pr_info("sleep_stat.%d: %ds %d %ds %d - "
+		"%d %d %d - %d %d - %d %d %d %d %d"
 		"(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC)\n",
 		flag, sleep_stat->tcxo_time, sleep_stat->tcxo_cnt,
-		sleep_stat->suspend_tcxo_time,
-		sleep_stat->suspend_tcxo_cnt, sleep_stat->garbage_pkt_cnt,
-		sleep_stat->zone_based_reg_cnt, sleep_stat->idle_hand_off_cnt,
+		sleep_stat->suspend_tcxo_time, sleep_stat->suspend_tcxo_cnt,
+		sleep_stat->garbage_pkt_cnt, sleep_stat->zone_based_reg_cnt,
+		sleep_stat->idle_hand_off_cnt, sleep_stat->mo_2g_probe_cnt,
+		sleep_stat->mo_3g_probe_cnt, sleep_stat->reserved[0],
+		sleep_stat->reserved[1], sleep_stat->reserved[2],
+		sleep_stat->reserved[3], sleep_stat->reserved[4],
 		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 
@@ -200,14 +206,18 @@ static int debug_read_stat(char *buf, int max)
 			"suspend_tcxo_time: 0x%x (%ds) suspend_tcxo_cnt: %d\n"
 			"garbage_pkt_cnt: %d "
 			"zone_based_reg_cnt: %d "
-			"idle_hand_off_cnt: %d\n",
+			"idle_hand_off_cnt: %d "
+			"mo_2g_probe_cnt: %d "
+			"mo_3g_probe_cnt: %d\n",
 			sleep_stat->tcxo_time, sleep_stat->tcxo_time >> 15,
 			sleep_stat->tcxo_cnt, sleep_stat->suspend_tcxo_time,
 			sleep_stat->suspend_tcxo_time >> 15,
 			sleep_stat->suspend_tcxo_cnt,
 			sleep_stat->garbage_pkt_cnt,
 			sleep_stat->zone_based_reg_cnt,
-			sleep_stat->idle_hand_off_cnt);
+			sleep_stat->idle_hand_off_cnt,
+			sleep_stat->mo_2g_probe_cnt,
+			sleep_stat->mo_3g_probe_cnt);
 	}
 #endif
 

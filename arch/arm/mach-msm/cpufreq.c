@@ -93,22 +93,15 @@ static int __init msm_cpufreq_init(struct cpufreq_policy *policy)
 
 	BUG_ON(cpufreq_frequency_table_cpuinfo(policy, table));
 	policy->cur = acpuclk_get_rate();
-/* ASTAR: by default (during boot and after) use safe freqs
-#if 0 */
+#if 0
 	/* restrict cpu freq scaling range by overwriting */
 	policy->min = CONFIG_MSM_CPU_FREQ_ONDEMAND_MIN;
 	policy->max = CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX;
-/* ASTAR #endif */
+#endif
 	policy->cpuinfo.transition_latency =
 		acpuclk_get_switch_time() * NSEC_PER_USEC;
 	return 0;
 }
-
-/* ToAsTcfh: autodetect for setcpu */
-static struct freq_attr *msm_cpufreq_attr[] = {
-	&cpufreq_freq_attr_scaling_available_freqs,
-	NULL,
-};
 
 static struct cpufreq_driver msm_cpufreq_driver = {
 	/* lps calculations are handled here. */
@@ -117,7 +110,6 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.verify		= msm_cpufreq_verify,
 	.target		= msm_cpufreq_target,
 	.name		= "msm",
-	.attr       = msm_cpufreq_attr, 	/* ToAsTcfh */
 };
 
 static int __init msm_cpufreq_register(void)

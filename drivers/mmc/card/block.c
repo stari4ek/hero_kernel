@@ -42,6 +42,7 @@
 #include <asm/uaccess.h>
 
 #include "queue.h"
+#include "../core/sd_ops.h"
 
 MODULE_ALIAS("mmc:block");
 
@@ -99,6 +100,9 @@ static void mmc_blk_put(struct mmc_blk_data *md)
 	md->usage--;
 	if (md->usage == 0) {
 		int devidx = MINOR(disk_devt(md->disk)) >> MMC_SHIFT;
+
+		blk_cleanup_queue(md->queue.queue);
+
 		__clear_bit(devidx, dev_use);
 
 		put_disk(md->disk);
@@ -284,7 +288,6 @@ mmc_blk_set_blksize(struct mmc_blk_data *md, struct mmc_card *card)
 	return 0;
 }
 
-
 static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 {
 	struct mmc_blk_data *md = mq->data;
@@ -295,7 +298,18 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
 	if (mmc_bus_needs_resume(card->host)) {
 		mmc_resume_bus(card->host);
+		if (mmc_bus_fails_resume(card->host))
+			return 0;
 		mmc_blk_set_blksize(md, card);
+	}
+
+	if (mmc_bus_fails_resume(card->host)) {
+		spin_lock_irq(&md->lock);
+		while (ret)
+			ret = __blk_end_request(req, -EIO, blk_rq_cur_bytes(req));
+		spin_unlock_irq(&md->lock);
+
+		return 0;
 	}
 #endif
 
@@ -394,6 +408,7 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		 * programming mode even when things go wrong.
 		 */
 		if (brq.cmd.error || brq.data.error || brq.stop.error) {
+
 			if (brq.data.blocks > 1 && rq_data_dir(req) == READ) {
 				/* Redo read one sector at a time */
 				printk(KERN_WARNING "%s: retrying using single "
@@ -409,6 +424,7 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 			       "command, response %#x, card status %#x\n",
 			       req->rq_disk->disk_name, brq.cmd.error,
 			       brq.cmd.resp[0], status);
+
 		}
 
 		if (brq.data.error) {
@@ -501,6 +517,8 @@ skip_checking:
 				spin_lock_irq(&md->lock);
 				ret = __blk_end_request(req, -EIO, brq.data.blksz);
 				spin_unlock_irq(&md->lock);
+				if (card->type == MMC_TYPE_SD)
+					mmc_sd_reset_card(card);
 				continue;
 			}
 			goto cmd_err;

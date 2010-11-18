@@ -397,9 +397,6 @@ static uint16_t mddi_init_registers(struct mddi_info *mddi)
 	mddi_writel(0x0003, SPM); /* subframes per media */
 	mddi_writel(0x0005, TA1_LEN);
 	mddi_writel(MDDI_HOST_TA2_LEN, TA2_LEN);
-	mddi_writel(0x0096, DRIVE_HI);
-	/* 0x32 normal, 0x50 for Toshiba display */
-	mddi_writel(0x0050, DRIVE_LO);
 	mddi_writel(0x003C, DISP_WAKE); /* wakeup counter */
 	mddi_writel(MDDI_HOST_REV_RATE_DIV, REV_RATE_DIV);
 
@@ -421,8 +418,16 @@ static uint16_t mddi_init_registers(struct mddi_info *mddi)
 	mddi_writel(0xa850f, PAD_CTL);
 
 #ifdef CONFIG_ARCH_QSD8X50
+	/* Only for novatek driver IC*/
+	mddi_writel(0x00C8, DRIVE_HI);
+	/* 0x32 normal, 0x50 for Toshiba display */
+	mddi_writel(0x0050, DRIVE_LO);
 	mddi_writel(0x00320000, PAD_IO_CTL);
 	mddi_writel(0x00220020, PAD_CAL);
+#else
+	mddi_writel(0x0096, DRIVE_HI);
+	/* 0x32 normal, 0x50 for Toshiba display */
+	mddi_writel(0x0050, DRIVE_LO);
 #endif
 
 	/* Need an even number for counts */
@@ -684,6 +689,7 @@ uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
 
 	ri.reg = reg;
 	ri.status = -1;
+	ri.result = -1;
 
 	do {
 		init_completion(&ri.done);

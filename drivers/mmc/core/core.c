@@ -680,11 +680,14 @@ int mmc_resume_bus(struct mmc_host *host)
 
 	printk("%s: Starting deferred resume\n", mmc_hostname(host));
 	host->bus_resume_flags &= ~MMC_BUSRESUME_NEEDS_RESUME;
+	host->bus_resume_flags |= MMC_BUSRESUME_START_RESUME;
 	mmc_bus_get(host);
 	if (host->bus_ops && !host->bus_dead) {
 		mmc_power_up(host);
 		BUG_ON(!host->bus_ops->resume);
 		host->bus_ops->resume(host);
+		if (mmc_bus_fails_resume(host))
+			goto end;
 	}
 
 	if (host->bus_ops && !host->bus_dead) {
@@ -692,8 +695,11 @@ int mmc_resume_bus(struct mmc_host *host)
 			host->bus_ops->detect(host);
 	}
 
+end:
 	mmc_bus_put(host);
-	printk("%s: Deferred resume completed\n", mmc_hostname(host));
+	host->bus_resume_flags &= ~MMC_BUSRESUME_START_RESUME;
+	printk(KERN_INFO "%s: Deferred resume %s\n", mmc_hostname(host),
+			mmc_bus_fails_resume(host) ? "failed" : "completed");
 	return 0;
 }
 

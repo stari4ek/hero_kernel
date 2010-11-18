@@ -284,6 +284,9 @@ static char *usb_functions[] = {
 #if defined(CONFIG_USB_FUNCTION_MODEM)
 	"serial",
 #endif
+#if defined(CONFIG_USB_FUNCTION_PROJECTOR)
+	"projector",
+#endif
 #if defined(CONFIG_USB_FUNCTION_MTP_TUNNEL)
 	"mtp_tunnel",
 #endif

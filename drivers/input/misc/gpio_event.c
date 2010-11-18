@@ -125,11 +125,14 @@ static int gpio_event_call_all_func(struct gpio_event *ip, int func)
 	ret = 0;
 	i = ip->info->info_count;
 	ii = ip->info->info + i;
+	printk(KERN_INFO "%s: ip->info->info_count %d \n", __func__,i );
 	while (i > 0) {
 		i--;
 		ii--;
 		if ((func & ~1) == GPIO_EVENT_FUNC_SUSPEND && (*ii)->no_suspend)
 			continue;
+
+		printk(KERN_INFO "%s: i= %d , func = 0x%x\n", __func__,i,func & ~1);
 		(*ii)->func(ip->input_devs, *ii, &ip->state[i], func & ~1);
 err_func_failed:
 err_no_func:
@@ -143,6 +146,7 @@ void gpio_event_suspend(struct early_suspend *h)
 {
 	struct gpio_event *ip;
 	ip = container_of(h, struct gpio_event, early_suspend);
+	printk(KERN_INFO "%s: gpio_event_suspend \n", __func__);
 	gpio_event_call_all_func(ip, GPIO_EVENT_FUNC_SUSPEND);
 	ip->info->power(ip->info, 0);
 }
@@ -154,7 +158,33 @@ void gpio_event_resume(struct early_suspend *h)
 	ip->info->power(ip->info, 1);
 	gpio_event_call_all_func(ip, GPIO_EVENT_FUNC_RESUME);
 }
+
 #endif
+
+static unsigned char phone_call_status = 0;
+int gpio_event_get_phone_call_status(void)
+{
+	return phone_call_status;
+}
+
+static int phone_call_status_store(const char *val, struct kernel_param *kp)
+{
+	int enabled = simple_strtol(val, NULL, 0);
+	phone_call_status = enabled;
+	printk(KERN_INFO "%s: phone_call_status %d\n", __func__,enabled);
+
+	return 0;
+}
+
+static int phone_call_status_show(char *buffer, struct kernel_param *kp)
+{
+	buffer[0] = '0' + phone_call_status;
+	return 1;
+}
+
+module_param_call(phone_call_status, phone_call_status_store, phone_call_status_show, 0, 0664);
+
+
 
 #ifdef CONFIG_MACH_HEROC
 static ssize_t gpio_key_filter_time_show(struct device *dev,
@@ -181,6 +211,7 @@ static ssize_t gpio_key_filter_time_store(struct device *dev,
 static DEVICE_ATTR(key_filter_time, 0644,
 	gpio_key_filter_time_show, gpio_key_filter_time_store);
 #endif
+
 
 static int __init gpio_event_probe(struct platform_device *pdev)
 {
@@ -234,6 +265,7 @@ static int __init gpio_event_probe(struct platform_device *pdev)
 	ip->info = event_info;
 	if (event_info->power) {
 #ifdef CONFIG_HAS_EARLYSUSPEND
+		printk(KERN_INFO "%s: EARLYSUSPEND \n", __func__);
 		ip->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
 		ip->early_suspend.suspend = gpio_event_suspend;
 		ip->early_suspend.resume = gpio_event_resume;

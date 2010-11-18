@@ -644,26 +644,6 @@ static void hw3d_late_resume(struct early_suspend *h)
 	spin_unlock_irqrestore(&info->lock, flags);
 }
 
-#ifndef CONFIG_MSM_HW3D_EARLYSUSPEND_ENABLED
-/* ASTAR:	fix declaration to be compatible with platform_driver.suspend type
-			TODO: looks like this macro depends on some debug configs.
-static void hw3d_suspend(struct platform_device *pdev) */
-static void hw3d_suspend(struct platform_device *pdev, pm_message_t state)
-{
-	struct hw3d_info *info = platform_get_drvdata(pdev);
-	unsigned long flags;
-
-	spin_lock_irqsave(&info->lock, flags);
-	info->suspending = 1;
-	if (info->client_file) {
-		pr_info("%s: suspending\n", __func__);
-		locked_hw3d_revoke(info);
-	}
-	spin_unlock_irqrestore(&info->lock, flags);
-	/* ASTAR return 0; */
-}
-#endif
-
 static int hw3d_resume(struct platform_device *pdev)
 {
 	struct hw3d_info *info = platform_get_drvdata(pdev);
@@ -762,12 +742,10 @@ static int __init hw3d_probe(struct platform_device *pdev)
 		goto err_misc_reg_client;
 	}
 
-#ifdef CONFIG_MSM_HW3D_EARLYSUSPEND_ENABLED
 	info->early_suspend.suspend = hw3d_early_suspend;
 	info->early_suspend.resume = hw3d_late_resume;
 	info->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
 	register_early_suspend(&info->early_suspend);
-#endif
 
 	info->irq_en = 1;
 	ret = request_irq(info->irq, hw3d_irq_handler, IRQF_TRIGGER_HIGH,
@@ -807,9 +785,6 @@ err_alloc:
 static struct platform_driver msm_hw3d_driver = {
 	.probe		= hw3d_probe,
 	.resume		= hw3d_resume,
-#ifndef CONFIG_MSM_HW3D_EARLYSUSPEND_ENABLED
-	.suspend         = hw3d_suspend,
-#endif
 	.driver		= {
 		.name = "msm_hw3d",
 		.owner = THIS_MODULE,

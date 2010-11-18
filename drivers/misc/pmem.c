@@ -32,7 +32,7 @@
 #define PMEM_MAX_ORDER 128
 #define PMEM_MIN_ALLOC PAGE_SIZE
 
-#define PMEM_DEBUG 1
+#define PMEM_DEBUG 0
 //#define PMEM_LOG
 
 /* indicates that a refernce to this file has been taken via get_pmem_file,
@@ -432,7 +432,7 @@ static int pmem_allocate(int id, unsigned long len)
 	 * return an error
 	 */
 	if (best_fit < 0) {
-		printk("pmem: no space left to allocate!\n");
+		printk("pmem: no space left to allocate! %s, pid=%d\n", pmem[id].dev.name, current->pid);
 		return -1;
 	}
 

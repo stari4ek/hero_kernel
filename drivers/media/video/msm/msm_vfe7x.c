@@ -274,11 +274,11 @@ static void vfe_7x_release(struct platform_device *pdev)
 	msm_adsp_disable(qcam_mod);
 	msm_adsp_disable(vfe_mod);
 
+	/* for power sequence of standby mode on HERO eclair */
 #if defined(CONFIG_ARCH_MSM7X00A)
 	if (sctrl)
 		sctrl->s_release();
 
-	/* for HERO power sequence of standby mode */
 	msm_adsp_put(qcam_mod);
 	msm_adsp_put(vfe_mod);
 #else
@@ -293,6 +293,7 @@ static void vfe_7x_release(struct platform_device *pdev)
 
 	kfree(extdata);
 	extdata = 0;
+
 }
 
 static int vfe_7x_init(struct msm_vfe_callback *presp,

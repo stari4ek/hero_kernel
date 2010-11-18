@@ -11,5 +11,6 @@ obj-$(CONFIG_USB_FUNCTION_ETHER)	+= ether.o
 obj-$(CONFIG_USB_FUNCTION_SERIAL)	+= fserial.o
 obj-$(CONFIG_USB_FUNCTION_MODEM)	+= serial.o
 obj-$(CONFIG_USB_FUNCTION_FSYNC)	+= fsync.o
+obj-$(CONFIG_USB_FUNCTION_PROJECTOR)	+= projector.o
 obj-$(CONFIG_USB_FUNCTION_RNDIS)        += rndis.o
 obj-$(CONFIG_USB_FUNCTION_MTP_TUNNEL)   += mtp_tunnel.o
