@@ -1,0 +1,9 @@
+# build generated files
+/include/asm
+/include/config
+/include/linux/autoconf.h
+/include/linux/utsrelease.h
+/include/linux/version.h
+Module.symvers
+.config*
+.version
