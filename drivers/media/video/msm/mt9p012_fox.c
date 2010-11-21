@@ -987,7 +987,7 @@ init_probe_done:
 	return rc;
 }
 
-static int mt9p012_sensor_open_init(const struct msm_camera_sensor_info *data)
+static int mt9p012_sensor_open_init(struct msm_camera_sensor_info *data)
 {
 	int rc;
 
@@ -1039,7 +1039,7 @@ static int mt9p012_sensor_open_init(const struct msm_camera_sensor_info *data)
 	}
 
 	/* TODO: enable AF actuator */
-#if 0
+#if 1
 	CDBG("enable AF actuator, gpio = %d\n",
 	     mt9p012_ctrl->sensordata->vcm_pwd);
 	rc = gpio_request(mt9p012_ctrl->sensordata->vcm_pwd, "mt9p012");
@@ -1272,6 +1272,18 @@ static const struct i2c_device_id mt9p012_i2c_id[] = {
 	{}
 };
 
+static int __exit mt9p012_i2c_remove(struct i2c_client *client)
+{
+	struct mt9p012_work_t *sensorw = i2c_get_clientdata(client);
+
+	printk("mt9p012_i2c_remove()\n");
+
+	free_irq(client->irq, sensorw);
+	mt9p012_client = NULL;
+	kfree(sensorw);
+	return 0;
+}
+
 static struct i2c_driver mt9p012_i2c_driver = {
 	.id_table = mt9p012_i2c_id,
 	.probe = mt9p012_i2c_probe,
@@ -1281,7 +1293,7 @@ static struct i2c_driver mt9p012_i2c_driver = {
 		   },
 };
 
-static int mt9p012_sensor_probe(const struct msm_camera_sensor_info *info,
+static int mt9p012_sensor_probe(struct msm_camera_sensor_info *info,
 				struct msm_sensor_ctrl *s)
 {
 	int rc = i2c_add_driver(&mt9p012_i2c_driver);
