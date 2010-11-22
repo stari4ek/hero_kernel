@@ -7,3 +7,4 @@
 Module.symvers
 .config*
 .version
+modules.order
