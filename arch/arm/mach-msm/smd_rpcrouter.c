@@ -741,153 +741,184 @@ int msm_rpc_close(struct msm_rpc_endpoint *ept)
 }
 EXPORT_SYMBOL(msm_rpc_close);
 
-int msm_rpc_write(struct msm_rpc_endpoint *ept, void *buffer, int count)
-{
-	struct rr_header hdr;
-	uint32_t pacmark;
-	struct rpc_request_hdr *rq = buffer;
-	struct rr_remote_endpoint *r_ept;
-	unsigned long flags;
-	int needed;
-	DEFINE_WAIT(__wait);
+static int msm_rpc_write_pkt(struct rr_header *hdr,
+                struct msm_rpc_endpoint *ept, struct rr_remote_endpoint *r_ept,
+                void *buffer, int count, int first, int last)  {
 
-	/* TODO: fragmentation for large outbound packets */
-	if (count > (RPCROUTER_MSGSIZE_MAX - sizeof(uint32_t)) || !count)
-		return -EINVAL;
+     uint32_t pacmark;
+     unsigned long flags;
+     int needed;
+     DEFINE_WAIT(__wait);
 
-	/* snoop the RPC packet and enforce permissions */
+  	      /* Create routing header */
+        hdr->type = RPCROUTER_CTRL_CMD_DATA;
+        hdr->version = RPCROUTER_VERSION;
+        hdr->src_pid = ept->pid;
+        hdr->src_cid = ept->cid;
+        hdr->confirm_rx = 0;
+        hdr->size = count + sizeof(uint32_t);
+        for (;;) {
+                prepare_to_wait(&r_ept->quota_wait, &__wait,
+                                TASK_INTERRUPTIBLE);
+                spin_lock_irqsave(&r_ept->quota_lock, flags);
+                if (r_ept->tx_quota_cntr < RPCROUTER_DEFAULT_RX_QUOTA)
+                        break;
+                if (signal_pending(current) &&
+                    (!(ept->flags & MSM_RPC_UNINTERRUPTIBLE)))
+                        break;
+                spin_unlock_irqrestore(&r_ept->quota_lock, flags);
+                schedule();
+        }
+        finish_wait(&r_ept->quota_wait, &__wait);
+        if (signal_pending(current) &&
+            (!(ept->flags & MSM_RPC_UNINTERRUPTIBLE))) {
+                spin_unlock_irqrestore(&r_ept->quota_lock, flags);
+                return -ERESTARTSYS;
+        }
+        r_ept->tx_quota_cntr++;
+        if (r_ept->tx_quota_cntr == RPCROUTER_DEFAULT_RX_QUOTA)
+                hdr->confirm_rx = 1;
+        /* bump pacmark while interrupts disabled to avoid race
+         * probably should be atomic op instead
+         */
+        pacmark = PACMARK(count, next_pacmarkid, first, last);
+        next_pacmarkid += last; /* a little clever */
+        spin_unlock_irqrestore(&r_ept->quota_lock, flags);
+        spin_lock_irqsave(&smd_lock, flags);
+        needed = sizeof(*hdr) + hdr->size;
+        while (smd_write_avail(smd_channel) < needed) {
+                spin_unlock_irqrestore(&smd_lock, flags);
+                msleep(250);
+                spin_lock_irqsave(&smd_lock, flags);
+        }
+        /* TODO: deal with full fifo */
+        smd_write(smd_channel, hdr, sizeof(*hdr));
+        smd_write(smd_channel, &pacmark, sizeof(pacmark));
+        smd_write(smd_channel, buffer, count);
 
-	/* has to have at least the xid and type fields */
-	if (count < (sizeof(uint32_t) * 2)) {
-		printk(KERN_ERR "rr_write: rejecting runt packet\n");
-		return -EINVAL;
-	}
+        spin_unlock_irqrestore(&smd_lock, flags);
 
-	if (rq->type == 0) {
-		/* RPC CALL */
-		if (count < (sizeof(uint32_t) * 6)) {
-			printk(KERN_ERR
-			       "rr_write: rejecting runt call packet\n");
-			return -EINVAL;
-		}
-		if (ept->dst_pid == 0xffffffff) {
-			printk(KERN_ERR "rr_write: not connected\n");
-			return -ENOTCONN;
-		}
+        return needed;
+}
+
+int msm_rpc_write(struct msm_rpc_endpoint *ept, void *buffer, int count) {
+
+        struct rr_header hdr;
+        struct rpc_request_hdr *rq = buffer;
+        struct rr_remote_endpoint *r_ept;
+        int max_tx;
+        int tx_cnt;
+        char *tx_buf;
+        int rc;
+        int first_pkt = 1;
+
+        /* snoop the RPC packet and enforce permissions */
+
+        /* has to have at least the xid and type fields */
+
+        if (count < (sizeof(uint32_t) * 2)) {
+
+                printk(KERN_ERR "rr_write: rejecting runt packet\n");
+                return -EINVAL;
+        }
+
+        if (rq->type == 0) {
+                /* RPC CALL */
+                if (count < (sizeof(uint32_t) * 6)) {
+                        printk(KERN_ERR
+                               "rr_write: rejecting runt call packet\n");
+                        return -EINVAL;
+                }
+                if (ept->dst_pid == 0xffffffff) {
+                        printk(KERN_ERR "rr_write: not connected\n");
+                        return -ENOTCONN;
+                }
 
 #if defined(CONFIG_ARCH_QSD8X50)
 		if ((ept->dst_prog != rq->prog) ||
 			!msm_rpc_is_compatible_version(
 					be32_to_cpu(ept->dst_vers),
-					be32_to_cpu(rq->vers))) {
+					be32_to_cpu(rq->vers))) 
 #else
-		if (ept->dst_prog != rq->prog || ept->dst_vers != rq->vers) {
+		if (ept->dst_prog != rq->prog || ept->dst_vers != rq->vers) 
 #endif
-			printk(KERN_ERR
-			       "rr_write: cannot write to %08x:%d "
-			       "(bound to %08x:%d)\n",
-			       be32_to_cpu(rq->prog), be32_to_cpu(rq->vers),
-			       be32_to_cpu(ept->dst_prog),
-			       be32_to_cpu(ept->dst_vers));
-			return -EINVAL;
-		}
-		hdr.dst_pid = ept->dst_pid;
-		hdr.dst_cid = ept->dst_cid;
-		IO("CALL on ept %p to %08x:%08x @ %d:%08x (%d bytes) (xid %x proc %x)\n",
-		   ept,
-		   be32_to_cpu(rq->prog), be32_to_cpu(rq->vers),
-		   ept->dst_pid, ept->dst_cid, count,
-		   be32_to_cpu(rq->xid), be32_to_cpu(rq->procedure));
-	} else {
-		/* RPC REPLY */
-		/* TODO: locking */
-		if (ept->reply_pid == 0xffffffff) {
-			printk(KERN_ERR
-			       "rr_write: rejecting unexpected reply\n");
-			return -EINVAL;
-		}
-		if (ept->reply_xid != rq->xid) {
-			printk(KERN_ERR
-			       "rr_write: rejecting packet w/ bad xid\n");
-			return -EINVAL;
-		}
+		{		
+                        printk(KERN_ERR
+                               "rr_write: cannot write to %08x:%d "
+                               "(bound to %08x:%d)\n",
+                               be32_to_cpu(rq->prog), be32_to_cpu(rq->vers),
+                               be32_to_cpu(ept->dst_prog),
+                               be32_to_cpu(ept->dst_vers));
+                        return -EINVAL;
+                }
+                hdr.dst_pid = ept->dst_pid;
+                hdr.dst_cid = ept->dst_cid;
+                IO("CALL on ept %p to %08x:%08x @ %d:%08x (%d bytes) (xid %x proc %x)\n",
+                   ept,
+                   be32_to_cpu(rq->prog), be32_to_cpu(rq->vers),
+                   ept->dst_pid, ept->dst_cid, count,
+                   be32_to_cpu(rq->xid), be32_to_cpu(rq->procedure));
+        } else {
+              /* RPC REPLY */
+                /* TODO: locking */
+                if (ept->reply_pid == 0xffffffff) {
+                        printk(KERN_ERR
+                               "rr_write: rejecting unexpected reply\n");
+                        return -EINVAL;
+                }
+                if (ept->reply_xid != rq->xid) {
+                        printk(KERN_ERR
+                               "rr_write: rejecting packet w/ bad xid\n");
+                        return -EINVAL;
+                }
 
-		hdr.dst_pid = ept->reply_pid;
-		hdr.dst_cid = ept->reply_cid;
+                hdr.dst_pid = ept->reply_pid;
+                hdr.dst_cid = ept->reply_cid;
 
-		/* consume this reply */
-		ept->reply_pid = 0xffffffff;
+                /* consume this reply */
+                ept->reply_pid = 0xffffffff;
 
-		IO("REPLY on ept %p to xid=%d @ %d:%08x (%d bytes)\n",
-		   ept,
-		   be32_to_cpu(rq->xid), hdr.dst_pid, hdr.dst_cid, count);
-	}
+                IO("REPLY on ept %p to xid=%d @ %d:%08x (%d bytes)\n",
+                   ept,
+                   be32_to_cpu(rq->xid), hdr.dst_pid, hdr.dst_cid, count);
+        }
 
-	r_ept = rpcrouter_lookup_remote_endpoint(hdr.dst_cid);
+        r_ept = rpcrouter_lookup_remote_endpoint(hdr.dst_cid);
 
-	if (!r_ept) {
-		printk(KERN_ERR
-			"msm_rpc_write(): No route to ept "
-			"[PID %x CID %x]\n", hdr.dst_pid, hdr.dst_cid);
-		return -EHOSTUNREACH;
-	}
+        if (!r_ept) {
+                printk(KERN_ERR
+                        "msm_rpc_write(): No route to ept "
+                        "[PID %x CID %x]\n", hdr.dst_pid, hdr.dst_cid);
+                return -EHOSTUNREACH;
+        }
 
-	/* Create routing header */
-	hdr.type = RPCROUTER_CTRL_CMD_DATA;
-	hdr.version = RPCROUTER_VERSION;
-	hdr.src_pid = ept->pid;
-	hdr.src_cid = ept->cid;
-	hdr.confirm_rx = 0;
-	hdr.size = count + sizeof(uint32_t);
+        tx_cnt = count;
+        tx_buf = buffer;
 
-	for (;;) {
-		prepare_to_wait(&r_ept->quota_wait, &__wait,
-				TASK_INTERRUPTIBLE);
-		spin_lock_irqsave(&r_ept->quota_lock, flags);
-		if (r_ept->tx_quota_cntr < RPCROUTER_DEFAULT_RX_QUOTA)
-			break;
-		if (signal_pending(current) && 
-		    (!(ept->flags & MSM_RPC_UNINTERRUPTIBLE)))
-			break;
-		spin_unlock_irqrestore(&r_ept->quota_lock, flags);
-		schedule();
-	}
-	finish_wait(&r_ept->quota_wait, &__wait);
-
-	if (signal_pending(current) &&
-	    (!(ept->flags & MSM_RPC_UNINTERRUPTIBLE))) {
-		spin_unlock_irqrestore(&r_ept->quota_lock, flags);
-		return -ERESTARTSYS;
-	}
-	r_ept->tx_quota_cntr++;
-	if (r_ept->tx_quota_cntr == RPCROUTER_DEFAULT_RX_QUOTA)
-		hdr.confirm_rx = 1;
-
-	/* bump pacmark while interrupts disabled to avoid race
-	 * probably should be atomic op instead
-	 */
-	pacmark = PACMARK(count, ++next_pacmarkid, 0, 1);
-
-	spin_unlock_irqrestore(&r_ept->quota_lock, flags);
-
-	spin_lock_irqsave(&smd_lock, flags);
-
-	needed = sizeof(hdr) + hdr.size;
-	while (smd_write_avail(smd_channel) < needed) {
-		spin_unlock_irqrestore(&smd_lock, flags);
-		msleep(250);
-		spin_lock_irqsave(&smd_lock, flags);
-	}
-
-	/* TODO: deal with full fifo */
-	smd_write(smd_channel, &hdr, sizeof(hdr));
-	smd_write(smd_channel, &pacmark, sizeof(pacmark));
-	smd_write(smd_channel, buffer, count);
-
-	spin_unlock_irqrestore(&smd_lock, flags);
-
-	return count;
+        /* The modem's router can only take 500 bytes of data. The
+           first 8 bytes it uses on the modem side for addressing,
+           the next 4 bytes are for the pacmark header. */
+        max_tx = RPCROUTER_MSGSIZE_MAX - 8 - sizeof(uint32_t);
+        IO("Writing %d bytes, max pkt size is %d\n"
+           tx_cnt, max_tx);
+        while (tx_cnt > 0) {
+                if (tx_cnt > max_tx) {
+                        rc = msm_rpc_write_pkt(&hdr, ept, r_ept, tx_buf, max_tx, first_pkt, 0);
+                        if (rc < 0) return rc;
+                        IO("Wrote %d bytes\n", rc);
+                        tx_cnt -= max_tx;
+                        tx_buf += max_tx;
+                } else {
+                        rc = msm_rpc_write_pkt(&hdr, ept, r_ept, tx_buf, tx_cnt, first_pkt, 1);
+                        if (rc < 0) return rc;
+                        IO("Wrote %d bytes\n", rc);
+                        break;
+                }
+                first_pkt = 0;
+        }
+        return count;
 }
+
 EXPORT_SYMBOL(msm_rpc_write);
 
 /*
