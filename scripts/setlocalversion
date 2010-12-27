@@ -33,7 +33,10 @@ if head=`git rev-parse --verify --short HEAD 2>/dev/null`; then
 
 	#  append commit : the first 8 hex
 	#git log -1 --pretty=oneline | awk '{printf("-%.8s", $1)}'
-	git rev-parse --verify HEAD | awk '{printf("-%.8s", $1)}'
+	# ASTAR: workaround for awk, which can't truncate string with %.8s fmt
+	#git rev-parse --verify HEAD | awk '{printf("-%.8s", $1)}'
+	git rev-parse --verify --short HEAD | awk '{printf("-%.8s", $1)}'
+
 
 	# All done with git
 	exit
@@ -67,3 +70,4 @@ if rev=`svn info 2>/dev/null | grep '^Last Changed Rev'`; then
 	# All done with svn
 	exit
 fi
+
