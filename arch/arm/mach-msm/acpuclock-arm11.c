@@ -215,11 +215,17 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
 	{ 17, 748800 },
 	{ 18, 768000 },
 	{ 19, CPUFREQ_TABLE_END },
+#elif defined(CONFIG_7H_CPUCLOCK_FREQS_614)
+	{ 6, 614400 },
+	{ 7, CPUFREQ_TABLE_END },
 #elif defined(CONFIG_7H_CPUCLOCK_FREQS_633)
 	{ 6, 633600 },
 	{ 7, CPUFREQ_TABLE_END },
 #elif defined(CONFIG_7H_CPUCLOCK_FREQS_652)
 	{ 6, 652800 },
+	{ 7, CPUFREQ_TABLE_END },
+#elif defined(CONFIG_7H_CPUCLOCK_FREQS_672)
+	{ 6, 672000 },
 	{ 7, CPUFREQ_TABLE_END },
 #elif defined(CONFIG_7H_CPUCLOCK_FREQS_691)
 	{ 6, 691200 },
@@ -229,7 +235,7 @@ static struct cpufreq_frequency_table msm72xx_freq_table[] = {
 	{ 7, CPUFREQ_TABLE_END },
 #else
 	#error "Wrong kernel config"
-#endif /* ALL -> 633 -> 652 -> 691 -> 710 */
+#endif /* ALL -> 633 -> 652 -> 672 -> 691 -> 710 */
 #endif /* CONFIG_7H_CPUCLOCK_EXTENDED */
 #else
 	{ 0, 19200 },

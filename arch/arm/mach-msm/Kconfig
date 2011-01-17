@@ -74,6 +74,11 @@ choice
 	   This option allows to select final list of cpu frequencies, available
 	   for cpufreq module.
 
+config 7H_CPUCLOCK_FREQS_614
+	bool "Max: 614.4MHz"
+	help
+	  Use 614.4MHz instead of default 528MHz for max frequency.
+
 config 7H_CPUCLOCK_FREQS_633
 	bool "Max: 633.6MHz"
 	help
@@ -83,6 +88,11 @@ config 7H_CPUCLOCK_FREQS_652
 	bool "Max: 652.8MHz"
 	help
 	  Use 652.8MHz instead of default 528MHz for max frequency.
+
+config 7H_CPUCLOCK_FREQS_672
+	bool "Max: 672.0MHz"
+	help
+	  Use 672.0MHz instead of default 528MHz for max frequency.
 
 config 7H_CPUCLOCK_FREQS_691
 	bool "Max: 691.2MHz"
